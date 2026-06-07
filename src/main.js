@@ -1,5 +1,4 @@
 import {
-  fightEnemy,
   fightBoss,
   upgradeFighter,
   selectCountry,
@@ -8,6 +7,11 @@ import {
   getBattleStats,
   getEnemyForLevel,
   getUpgradeCost,
+  createBattleSession,
+  applyHeroAttack,
+  applyEnemyCounterAttack,
+  getBattleOutcome,
+  resolveBattleVictory,
   isBossUnlocked,
   LEVELS_PER_COUNTRY,
   MEGA_BOX_LEVEL,
@@ -23,8 +27,16 @@ const app = document.querySelector('#app');
 const storage = window.localStorage;
 const state = loadGame(storage);
 const qaMode = new URLSearchParams(window.location.search).has('qa');
+const HERO_ATTACK_MS = 760;
+const ENEMY_ATTACK_MS = 640;
+const OUTCOME_PAUSE_MS = 360;
+
 let lastBattleAnimation = null;
 let lastBossAnimation = false;
+let activeBattle = null;
+let battlePhase = 'idle';
+let lastDamagePopup = null;
+let isBattleAnimating = false;
 
 function escapeHtml(value) {
   return String(value)
@@ -43,6 +55,64 @@ function currentFighter() {
   return state.fighters.find((fighter) => fighter.id === state.selectedFighterId && fighter.unlocked)
     || state.fighters.find((fighter) => fighter.unlocked)
     || state.fighters[0];
+}
+
+function wait(ms) {
+  return new Promise((resolve) => {
+    window.setTimeout(resolve, ms);
+  });
+}
+
+function clearActiveBattle() {
+  activeBattle = null;
+  battlePhase = 'idle';
+  lastDamagePopup = null;
+  isBattleAnimating = false;
+}
+
+function battleMatches(fighter, country) {
+  return Boolean(
+    activeBattle
+    && activeBattle.fighterId === fighter.id
+    && activeBattle.countryId === country.id
+    && activeBattle.countryLevel === country.currentLevel
+  );
+}
+
+function hpPercent(currentHp, maxHp) {
+  if (!Number.isFinite(currentHp) || !Number.isFinite(maxHp) || maxHp <= 0) return 0;
+  return Math.min(100, Math.max(0, Math.round((currentHp / maxHp) * 100)));
+}
+
+function hpTone(currentHp, maxHp) {
+  const percent = hpPercent(currentHp, maxHp);
+  if (percent <= 25) return 'low';
+  if (percent <= 50) return 'mid';
+  return 'high';
+}
+
+function renderHpPanel(label, combatant) {
+  if (!combatant) return '<span class="sprite-stats">Обери іншу країну</span>';
+
+  const currentHp = Math.max(0, Math.round(combatant.currentHp));
+  const maxHp = Math.max(1, Math.round(combatant.maxHp));
+  const damage = Math.max(0, Math.round(combatant.damage));
+  const percent = hpPercent(currentHp, maxHp);
+  const tone = hpTone(currentHp, maxHp);
+  return `
+    <span class="hp-panel" aria-label="${escapeHtml(label)} HP ${currentHp} з ${maxHp}">
+      <span class="hp-meter" aria-hidden="true">
+        <span class="hp-fill ${tone}" style="width:${percent}%"></span>
+      </span>
+      <span class="hp-text">HP ${currentHp}/${maxHp}</span>
+      <span class="damage-line">Урон ${damage}</span>
+    </span>
+  `;
+}
+
+function renderDamagePopup(target) {
+  if (!lastDamagePopup || lastDamagePopup.target !== target) return '';
+  return `<span class="damage-popup target-${target}" aria-live="polite">-${lastDamagePopup.amount}</span>`;
 }
 
 function spriteRowIndex(stateName) {
@@ -82,16 +152,16 @@ function hydrateSpriteFallbacks() {
 }
 
 function heroSpriteState(country) {
-  if (lastBattleAnimation === 'hero') return 'attack';
-  if (lastBattleAnimation === 'enemy') return 'hurt';
-  if (state.bossDefeated || country.freed) return 'victory';
+  if (battlePhase === 'hero-attack') return 'attack';
+  if (battlePhase === 'enemy-attack') return 'hurt';
+  if (battlePhase === 'victory' || state.bossDefeated || country.freed) return 'victory';
   return 'idle';
 }
 
 function enemySpriteState(enemy) {
   if (!enemy) return 'idle';
-  if (lastBattleAnimation === 'hero') return 'hurt';
-  if (lastBattleAnimation === 'enemy') return 'attack';
+  if (battlePhase === 'hero-attack') return 'hurt';
+  if (battlePhase === 'enemy-attack') return 'attack';
   return 'idle';
 }
 
@@ -107,6 +177,18 @@ function render() {
   const enemySprite = getSpriteForEntity(bossOnStage ? 'boss' : 'zombie');
   const fighterState = heroSpriteState(country);
   const enemyState = enemySpriteState(enemy);
+  const inStepBattle = !bossOnStage && battleMatches(fighter, country);
+  const heroCombatant = inStepBattle
+    ? activeBattle.hero
+    : { currentHp: stats.hp, maxHp: stats.hp, damage: stats.damage };
+  const enemyCombatant = enemy
+    ? inStepBattle
+      ? activeBattle.enemy
+      : { currentHp: enemy.hp, maxHp: enemy.hp, damage: enemy.damage }
+    : null;
+  const fightDisabled = country.freed || isBattleAnimating;
+  const fightLabel = activeBattle ? '⚔️ Удар' : '⚔️ Битися з зомбі';
+  const battlePhaseClass = battlePhase === 'idle' ? '' : `phase-${battlePhase}`;
 
   app.innerHTML = `
     <section class="hero-card splash-hero" aria-label="ImageGen art bible і головна мапа пригоди">
@@ -156,22 +238,24 @@ function render() {
           </div>
         </div>
 
-        <div class="battle-stage ${lastBattleAnimation ? 'battle-flash' : ''}">
-          <div class="sprite hero-sprite ${lastBattleAnimation === 'hero' ? 'attacking' : ''}" style="--accent:${fighter.color}">
+        <div class="battle-stage ${lastBattleAnimation ? 'battle-flash' : ''} ${battlePhaseClass}">
+          <div class="sprite hero-sprite ${battlePhase === 'hero-attack' ? 'attacking' : ''} ${battlePhase === 'enemy-attack' ? 'hurt' : ''}" style="--accent:${fighter.color}">
+            ${renderDamagePopup('hero')}
             ${animatedSpriteMarkup(fighterSprite, fighterState, fighterSprite.fallbackEmoji, 'battle-sprite')}
             <span class="sprite-name">${escapeHtml(fighter.name)}</span>
-            <span class="sprite-stats">HP ${stats.hp} · Урон ${stats.damage}</span>
+            ${renderHpPanel(fighter.name, heroCombatant)}
           </div>
           <div class="versus">VS</div>
-          <div class="sprite zombie-sprite ${lastBattleAnimation === 'enemy' ? 'hurt' : ''}">
+          <div class="sprite zombie-sprite ${battlePhase === 'enemy-attack' ? 'attacking' : ''} ${battlePhase === 'hero-attack' ? 'hurt' : ''}">
+            ${renderDamagePopup('enemy')}
             ${enemy ? animatedSpriteMarkup(enemySprite, enemyState, enemySprite.fallbackEmoji, 'battle-sprite') : '<span class="saved-mark" aria-hidden="true">✅</span>'}
             <span class="sprite-name">${enemy ? escapeHtml(enemy.name) : 'Врятовано!'}</span>
-            <span class="sprite-stats">${enemy ? `HP ${enemy.hp} · Урон ${enemy.damage}` : 'Обери іншу країну'}</span>
+            ${enemy ? renderHpPanel(enemy.name, enemyCombatant) : '<span class="sprite-stats">Обери іншу країну</span>'}
           </div>
         </div>
 
         <div class="actions">
-          <button class="primary" data-action="fight" ${country.freed ? 'disabled' : ''}>⚔️ Битися з зомбі</button>
+          <button class="primary" data-action="fight" ${fightDisabled ? 'disabled' : ''}>${fightLabel}</button>
           <button data-action="boss" ${summary.bossUnlocked && !state.bossDefeated ? '' : 'disabled'}>👑 Битва з босом</button>
           <button data-action="reset-save">🔄 Нова гра</button>
           ${qaMode ? renderQaControls() : ''}
@@ -201,14 +285,6 @@ function render() {
 
   hydrateSpriteFallbacks();
   syncQaGlobals();
-
-  if (lastBattleAnimation) {
-    window.setTimeout(() => {
-      lastBattleAnimation = null;
-      lastBossAnimation = false;
-      render();
-    }, 860);
-  }
 }
 
 function renderQaControls() {
@@ -257,24 +333,86 @@ function renderFighterCard(fighter) {
   `;
 }
 
-function handleFight() {
-  const result = fightEnemy(state, state.selectedFighterId, state.selectedCountryId);
-  if (!result.victory) {
-    lastBattleAnimation = 'enemy';
-    addLog(state, 'Потрібна прокачка! Зароби монети або обери сильнішого бійця.');
+async function handleFight() {
+  if (isBattleAnimating) return;
+
+  const country = currentCountry();
+  if (country.freed) return;
+
+  if (!activeBattle || !battleMatches(currentFighter(), country)) {
+    const created = createBattleSession(state, state.selectedFighterId, state.selectedCountryId);
+    if (!created.created) {
+      clearActiveBattle();
+      addLog(state, 'Цей бій зараз недоступний. Обери відкритого бійця і країну з активним рівнем.');
+      saveGame(storage, state);
+      render();
+      return;
+    }
+    activeBattle = created.session;
+  }
+
+  isBattleAnimating = true;
+  battlePhase = 'hero-attack';
+  const heroAttack = applyHeroAttack(activeBattle);
+  activeBattle = heroAttack.session;
+  lastBattleAnimation = 'hero';
+  lastDamagePopup = { target: 'enemy', amount: heroAttack.damage };
+  render();
+  await wait(HERO_ATTACK_MS);
+
+  if (getBattleOutcome(activeBattle) === 'victory') {
+    battlePhase = 'victory';
+    lastDamagePopup = null;
+    render();
+    await wait(OUTCOME_PAUSE_MS);
+
+    const result = resolveBattleVictory(state, activeBattle);
+    if (result.completed) {
+      const { completedLevel, boxResult, country: completedCountry } = result.progress;
+      addLog(state, `${result.fighterName} переміг ${result.enemy.name}: +${result.reward} монет!`);
+      if (boxResult) addLog(state, `🎁 ${boxResult.message}`);
+      if (completedCountry.freed) addLog(state, `✅ ${completedCountry.name} звільнено від зомбі!`);
+      if (isBossUnlocked(state)) addLog(state, '👑 Усі 5 країн врятовано — фінальний бос відкритий!');
+      if (completedLevel === 1) addLog(state, 'Перший рівень дав рівно 50 монет.');
+    }
+
+    clearActiveBattle();
+    lastBattleAnimation = null;
+    saveGame(storage, state);
+    render();
     return;
   }
 
-  lastBattleAnimation = 'hero';
-  const { completedLevel, boxResult, country } = result.progress;
-  addLog(state, `${result.fighter.name} переміг ${result.enemy.name}: +${result.reward} монет!`);
-  if (boxResult) addLog(state, `🎁 ${boxResult.message}`);
-  if (country.freed) addLog(state, `✅ ${country.name} звільнено від зомбі!`);
-  if (isBossUnlocked(state)) addLog(state, '👑 Усі 5 країн врятовано — фінальний бос відкритий!');
-  if (completedLevel === 1) addLog(state, 'Перший рівень дав рівно 50 монет.');
+  battlePhase = 'enemy-attack';
+  const enemyAttack = applyEnemyCounterAttack(activeBattle);
+  activeBattle = enemyAttack.session;
+  lastBattleAnimation = 'enemy';
+  lastDamagePopup = { target: 'hero', amount: enemyAttack.damage };
+  render();
+  await wait(ENEMY_ATTACK_MS);
+
+  if (getBattleOutcome(activeBattle) === 'defeat') {
+    battlePhase = 'defeat';
+    lastDamagePopup = null;
+    addLog(state, 'Потрібна прокачка! Зароби монети або обери сильнішого бійця.');
+    saveGame(storage, state);
+    render();
+    await wait(OUTCOME_PAUSE_MS);
+    clearActiveBattle();
+    lastBattleAnimation = null;
+    render();
+    return;
+  }
+
+  battlePhase = 'idle';
+  lastBattleAnimation = null;
+  lastDamagePopup = null;
+  isBattleAnimating = false;
+  render();
 }
 
 function handleBoss() {
+  clearActiveBattle();
   const result = fightBoss(state, state.selectedFighterId);
   if (result.victory) {
     lastBattleAnimation = 'hero';
@@ -287,6 +425,7 @@ function handleBoss() {
 }
 
 function handleUpgrade(fighterId) {
+  clearActiveBattle();
   const result = upgradeFighter(state, fighterId);
   if (result.upgraded) {
     addLog(state, `${result.fighter.name} тепер рівня ${result.fighter.level}!`);
@@ -298,6 +437,7 @@ function handleUpgrade(fighterId) {
 }
 
 function devLevel10() {
+  clearActiveBattle();
   const country = currentCountry();
   const fighter = currentFighter();
   if (!country.freed) {
@@ -308,6 +448,7 @@ function devLevel10() {
 }
 
 function devFreeCountry() {
+  clearActiveBattle();
   const country = currentCountry();
   country.currentLevel = LEVELS_PER_COUNTRY;
   country.freed = true;
@@ -316,6 +457,7 @@ function devFreeCountry() {
 }
 
 function devFreeAllCountries() {
+  clearActiveBattle();
   for (const country of state.countries) {
     country.currentLevel = LEVELS_PER_COUNTRY;
     country.freed = true;
@@ -325,6 +467,7 @@ function devFreeAllCountries() {
 }
 
 function devMaxFighters() {
+  clearActiveBattle();
   for (const fighter of state.fighters) {
     fighter.unlocked = true;
     fighter.level = MAX_FIGHTER_LEVEL;
@@ -334,7 +477,7 @@ function devMaxFighters() {
 
 function handleReset() {
   Object.assign(state, resetGame(storage));
-  lastBattleAnimation = null;
+  clearActiveBattle();
   lastBossAnimation = false;
   addLog(state, 'Збереження очищено. Пригода починається спочатку!');
 }
@@ -343,10 +486,20 @@ app.addEventListener('click', (event) => {
   const target = event.target.closest('button');
   if (!target) return;
 
-  if (target.dataset.country) selectCountry(state, target.dataset.country);
-  if (target.dataset.fighter) selectFighter(state, target.dataset.fighter);
+  if (target.dataset.action === 'fight') {
+    void handleFight();
+    return;
+  }
+
+  if (target.dataset.country) {
+    clearActiveBattle();
+    selectCountry(state, target.dataset.country);
+  }
+  if (target.dataset.fighter) {
+    clearActiveBattle();
+    selectFighter(state, target.dataset.fighter);
+  }
   if (target.dataset.upgrade) handleUpgrade(target.dataset.upgrade);
-  if (target.dataset.action === 'fight') handleFight();
   if (target.dataset.action === 'boss') handleBoss();
   if (target.dataset.action === 'reset-save') handleReset();
   if (target.dataset.action === 'dev-level10') devLevel10();
@@ -364,6 +517,7 @@ function syncQaGlobals() {
   window.__zombieGameState = state;
   window.__zombieGameActions = {
     render,
+    clearActiveBattle,
     devLevel10,
     devFreeCountry,
     devFreeAllCountries,
@@ -372,6 +526,7 @@ function syncQaGlobals() {
     handleBoss,
     handleReset,
   };
+  window.__zombieGameBattle = () => activeBattle;
 }
 
 render();
