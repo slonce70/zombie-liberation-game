@@ -42,3 +42,4 @@ __pycache__/
 
 # Local Superpowers runtime state
 /.superpowers/
+/.worktrees/
