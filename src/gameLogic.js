@@ -163,6 +163,99 @@ export function fightEnemy(state, fighterId, countryId, random = Math.random) {
   return { victory: true, fighter, country, enemy, stats, reward: progress.reward, progress };
 }
 
+function clampHp(value, maxHp) {
+  return Math.min(maxHp, Math.max(0, value));
+}
+
+function copyBattleSession(session) {
+  return {
+    ...session,
+    hero: { ...session.hero },
+    enemy: { ...session.enemy },
+  };
+}
+
+export function createBattleSession(state, fighterId, countryId) {
+  const fighter = findFighter(state, fighterId);
+  const country = findCountry(state, countryId);
+  if (!fighter || !fighter.unlocked || !country || country.freed) {
+    return { created: false, reason: 'invalid_battle' };
+  }
+
+  const stats = getBattleStats(fighter);
+  const enemy = getEnemyForLevel(country.currentLevel);
+  return {
+    created: true,
+    session: {
+      fighterId: fighter.id,
+      fighterName: fighter.name,
+      countryId: country.id,
+      countryLevel: country.currentLevel,
+      hero: {
+        currentHp: stats.hp,
+        maxHp: stats.hp,
+        damage: stats.damage,
+      },
+      enemy: {
+        name: enemy.name,
+        emoji: enemy.emoji,
+        currentHp: enemy.hp,
+        maxHp: enemy.hp,
+        damage: enemy.damage,
+      },
+    },
+  };
+}
+
+export function applyHeroAttack(session) {
+  const next = copyBattleSession(session);
+  const damage = Math.max(0, next.hero.damage);
+  next.enemy.currentHp = clampHp(next.enemy.currentHp - damage, next.enemy.maxHp);
+  return { session: next, damage, target: 'enemy' };
+}
+
+export function applyEnemyCounterAttack(session) {
+  const next = copyBattleSession(session);
+  if (next.enemy.currentHp <= 0) {
+    return { session: next, damage: 0, target: 'hero', skipped: true };
+  }
+
+  const damage = Math.max(0, next.enemy.damage);
+  next.hero.currentHp = clampHp(next.hero.currentHp - damage, next.hero.maxHp);
+  return { session: next, damage, target: 'hero' };
+}
+
+export function getBattleOutcome(session) {
+  if (!session) return 'idle';
+  if (session.enemy.currentHp <= 0) return 'victory';
+  if (session.hero.currentHp <= 0) return 'defeat';
+  return 'ongoing';
+}
+
+export function resolveBattleVictory(state, session, random = Math.random) {
+  const country = findCountry(state, session?.countryId);
+  if (
+    !session
+    || !country
+    || country.freed
+    || country.currentLevel !== session.countryLevel
+    || getBattleOutcome(session) !== 'victory'
+  ) {
+    return { completed: false, reason: 'stale_battle' };
+  }
+
+  const progress = completeLevel(state, session.countryId, random);
+  if (!progress.completed) return { completed: false, reason: progress.reason };
+
+  return {
+    completed: true,
+    fighterName: session.fighterName,
+    enemy: session.enemy,
+    reward: progress.reward,
+    progress,
+  };
+}
+
 export function isBossUnlocked(state) {
   return state.countries.every((country) => country.freed);
 }
