@@ -90,6 +90,8 @@ test('step combat starts with full hero and enemy HP without mutating campaign',
   assert.equal(result.session.fighterId, 'artem');
   assert.equal(result.session.countryId, 'ukraine');
   assert.equal(result.session.countryLevel, 1);
+  assert.equal(result.session.heroAttackCount, 0);
+  assert.equal(result.session.enemyCounterCount, 0);
   assert.equal(result.session.hero.currentHp, result.session.hero.maxHp);
   assert.equal(result.session.enemy.currentHp, result.session.enemy.maxHp);
   assert.equal(state.coins, beforeCoins);
@@ -103,6 +105,8 @@ test('first step attack only damages the enemy when damage is below enemy HP', (
   const result = applyHeroAttack(session);
 
   assert.equal(result.damage, 34);
+  assert.equal(result.session.heroAttackCount, 1);
+  assert.equal(result.session.enemyCounterCount, 0);
   assert.equal(result.session.enemy.currentHp, 38);
   assert.equal(result.session.hero.currentHp, 135);
   assert.equal(getBattleOutcome(result.session), 'ongoing');
@@ -122,11 +126,28 @@ test('enemy counterattack only happens while enemy is alive and can defeat hero 
   const result = applyEnemyCounterAttack(session);
 
   assert.equal(result.damage, 11);
+  assert.equal(result.session.heroAttackCount, 0);
+  assert.equal(result.session.enemyCounterCount, 1);
   assert.equal(result.session.hero.currentHp, 0);
   assert.equal(result.session.enemy.currentHp, 38);
   assert.equal(getBattleOutcome(result.session), 'defeat');
   assert.equal(state.coins, 0);
   assert.equal(state.countries[0].currentLevel, 1);
+});
+
+test('enemy counterattack skip leaves provenance count unchanged', () => {
+  const state = createInitialState();
+  const baseSession = createBattleSession(state, 'artem', 'ukraine').session;
+  const session = {
+    ...baseSession,
+    enemy: { ...baseSession.enemy, currentHp: 0 },
+  };
+
+  const result = applyEnemyCounterAttack(session);
+
+  assert.equal(result.skipped, true);
+  assert.equal(result.damage, 0);
+  assert.equal(result.session.enemyCounterCount, 0);
 });
 
 test('step combat victory resolves the level exactly once', () => {
@@ -137,6 +158,7 @@ test('step combat victory resolves the level exactly once', () => {
   session = applyHeroAttack(session).session;
   session = applyHeroAttack(session).session;
 
+  assert.equal(session.heroAttackCount, 3);
   assert.equal(session.enemy.currentHp, 0);
   assert.equal(getBattleOutcome(session), 'victory');
 
@@ -160,6 +182,22 @@ test('step combat rejects forged victory sessions without mutation', () => {
     ...validSession,
     fighterId: 'sofia',
     fighterName: 'Софія Щит',
+    enemy: { ...validSession.enemy, currentHp: 0 },
+  };
+
+  const result = resolveBattleVictory(state, forgedSession, () => 0.99);
+
+  assert.equal(result.completed, false);
+  assert.equal(result.reason, 'stale_battle');
+  assert.equal(state.coins, 0);
+  assert.equal(state.countries[0].currentLevel, 1);
+});
+
+test('step combat rejects forged unlocked-fighter victory sessions without mutation', () => {
+  const state = createInitialState();
+  const validSession = createBattleSession(state, 'artem', 'ukraine').session;
+  const forgedSession = {
+    ...validSession,
     enemy: { ...validSession.enemy, currentHp: 0 },
   };
 

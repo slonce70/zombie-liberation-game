@@ -191,6 +191,8 @@ export function createBattleSession(state, fighterId, countryId) {
       fighterName: fighter.name,
       countryId: country.id,
       countryLevel: country.currentLevel,
+      heroAttackCount: 0,
+      enemyCounterCount: 0,
       hero: {
         currentHp: stats.hp,
         maxHp: stats.hp,
@@ -211,6 +213,7 @@ export function applyHeroAttack(session) {
   const next = copyBattleSession(session);
   const damage = Math.max(0, next.hero.damage);
   next.enemy.currentHp = clampHp(next.enemy.currentHp - damage, next.enemy.maxHp);
+  next.heroAttackCount = (next.heroAttackCount ?? 0) + 1;
   return { session: next, damage, target: 'enemy' };
 }
 
@@ -222,6 +225,7 @@ export function applyEnemyCounterAttack(session) {
 
   const damage = Math.max(0, next.enemy.damage);
   next.hero.currentHp = clampHp(next.hero.currentHp - damage, next.hero.maxHp);
+  next.enemyCounterCount = (next.enemyCounterCount ?? 0) + 1;
   return { session: next, damage, target: 'hero' };
 }
 
@@ -251,6 +255,10 @@ export function resolveBattleVictory(state, session, random = Math.random) {
 
   const stats = getBattleStats(fighter);
   const enemy = getEnemyForLevel(country.currentLevel);
+  const heroAttackCount = session.heroAttackCount;
+  const expectedEnemyHp = Number.isInteger(heroAttackCount)
+    ? clampHp(session.enemy.maxHp - session.hero.damage * heroAttackCount, session.enemy.maxHp)
+    : null;
   if (
     session.hero.maxHp !== stats.hp
     || session.hero.damage !== stats.damage
@@ -258,6 +266,9 @@ export function resolveBattleVictory(state, session, random = Math.random) {
     || session.enemy.emoji !== enemy.emoji
     || session.enemy.maxHp !== enemy.hp
     || session.enemy.damage !== enemy.damage
+    || !Number.isInteger(heroAttackCount)
+    || heroAttackCount <= 0
+    || session.enemy.currentHp !== expectedEnemyHp
   ) {
     return { completed: false, reason: 'stale_battle' };
   }
