@@ -199,10 +199,13 @@ test('step combat victory resolves the level exactly once', () => {
   let session = createBattleSession(state, 'artem', 'ukraine').session;
 
   session = applyHeroAttack(session).session;
+  session = applyEnemyCounterAttack(session).session;
   session = applyHeroAttack(session).session;
+  session = applyEnemyCounterAttack(session).session;
   session = applyHeroAttack(session).session;
 
   assert.equal(session.heroAttackCount, 3);
+  assert.equal(session.enemyCounterCount, 2);
   assert.equal(session.enemy.currentHp, 0);
   assert.equal(getBattleOutcome(session), 'victory');
 
@@ -219,6 +222,26 @@ test('step combat victory resolves the level exactly once', () => {
   assert.equal(duplicate.reason, 'stale_battle');
   assert.equal(state.coins, 50);
   assert.equal(state.countries[0].currentLevel, 2);
+});
+
+test('step combat rejects forged victory that skips required enemy counters', () => {
+  const state = createInitialState();
+  let forgedSession = createBattleSession(state, 'artem', 'ukraine').session;
+
+  forgedSession = applyHeroAttack(forgedSession).session;
+  forgedSession = applyHeroAttack(forgedSession).session;
+  forgedSession = applyHeroAttack(forgedSession).session;
+
+  assert.equal(forgedSession.heroAttackCount, 3);
+  assert.equal(forgedSession.enemyCounterCount, 0);
+  assert.equal(getBattleOutcome(forgedSession), 'victory');
+
+  const result = resolveBattleVictory(state, forgedSession, () => 0.99);
+
+  assert.equal(result.completed, false);
+  assert.equal(result.reason, 'stale_battle');
+  assert.equal(state.coins, 0);
+  assert.equal(state.countries[0].currentLevel, 1);
 });
 
 test('step combat rejects forged victory sessions without mutation', () => {

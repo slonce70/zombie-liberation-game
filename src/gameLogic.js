@@ -262,6 +262,12 @@ export function resolveBattleVictory(state, session, random = Math.random) {
   const enemy = getEnemyForLevel(country.currentLevel);
   const heroAttackCount = session.heroAttackCount;
   const enemyCounterCount = session.enemyCounterCount;
+  const expectedHeroAttackCount = session.hero.damage > 0
+    ? Math.ceil(session.enemy.maxHp / session.hero.damage)
+    : null;
+  const expectedEnemyCounterCount = expectedHeroAttackCount === null
+    ? null
+    : expectedHeroAttackCount - 1;
   const expectedEnemyHp = Number.isInteger(heroAttackCount)
     ? clampHp(session.enemy.maxHp - session.hero.damage * heroAttackCount, session.enemy.maxHp)
     : null;
@@ -276,10 +282,10 @@ export function resolveBattleVictory(state, session, random = Math.random) {
     || session.enemy.maxHp !== enemy.hp
     || session.enemy.damage !== enemy.damage
     || !Number.isInteger(heroAttackCount)
-    || heroAttackCount <= 0
+    || heroAttackCount !== expectedHeroAttackCount
     || session.enemy.currentHp !== expectedEnemyHp
     || !Number.isInteger(enemyCounterCount)
-    || enemyCounterCount < 0
+    || enemyCounterCount !== expectedEnemyCounterCount
     || session.hero.currentHp !== expectedHeroHp
   ) {
     return { completed: false, reason: 'stale_battle' };
