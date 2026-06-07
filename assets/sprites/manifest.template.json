@@ -1,0 +1,18 @@
+{
+  "contract": "zombie-liberation-hatch-pet-v1",
+  "artBible": "assets/concept/zombie-liberation-art-bible-v2.png",
+  "cellSize": 192,
+  "states": {
+    "idle": { "row": 0, "frames": 4 },
+    "attack": { "row": 1, "frames": 6 },
+    "hurt": { "row": 2, "frames": 4 },
+    "victory": { "row": 3, "frames": 4 }
+  },
+  "qaRequired": [
+    "same identity across rows",
+    "transparent or clean chroma-key background removed",
+    "no gore/horror/text/logos/realistic weapons",
+    "no detached effects/shadows/guide marks",
+    "readable silhouette at small size"
+  ]
+}

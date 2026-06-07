@@ -1,0 +1,45 @@
+import { readFile } from 'node:fs/promises';
+import assert from 'node:assert/strict';
+
+const files = ['index.html', 'src/main.js', 'src/styles.css', 'src/gameLogic.js', 'src/gameData.js'];
+for (const file of files) {
+  const content = await readFile(file, 'utf8');
+  assert.ok(content.length > 100, `${file} should not be empty`);
+}
+
+const html = await readFile('index.html', 'utf8');
+assert.match(html, /src\/main\.js/);
+
+const main = await readFile('src/main.js', 'utf8');
+assert.match(main, /world-map/);
+assert.match(main, /splash-hero/);
+assert.match(main, /art-bible-shot/);
+assert.match(main, /hero-pills/);
+assert.match(main, /loadGame/);
+assert.match(main, /saveGame/);
+assert.match(main, /getCampaignSummary/);
+assert.match(main, /getSpriteForEntity/);
+assert.match(main, /zombie-liberation-art-bible-v2/);
+assert.match(main, /qaMode/);
+assert.match(main, /dev-level10/);
+assert.match(main, /dev-free-all/);
+assert.match(main, /dev-max-fighters/);
+assert.match(main, /window\.__zombieGameActions/);
+assert.match(main, /animatedSpriteMarkup/);
+assert.match(main, /data-sprite-atlas/);
+assert.match(main, /spriteStates/);
+
+const css = await readFile('src/styles.css', 'utf8');
+assert.match(css, /\.world-map/);
+assert.match(css, /\.splash-hero/);
+assert.match(css, /\.art-bible-shot/);
+assert.match(css, /\.hero-pills/);
+assert.match(css, /@keyframes petIdle/);
+assert.match(css, /prefers-reduced-motion/);
+assert.match(css, /\.recommendation/);
+assert.match(css, /petAttack/);
+assert.match(css, /\.animated-sprite/);
+assert.match(css, /@keyframes spriteAtlas/);
+assert.match(css, /\.sprite-failed/);
+
+console.log('Smoke check passed: app shell, map, QA hooks, and generated atlas sprite animation are present.');

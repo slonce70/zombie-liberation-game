@@ -1,0 +1,13 @@
+{
+  "name": "zombie-liberation-game",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test test/*.test.js",
+    "smoke": "node scripts/smoke-check.mjs",
+    "sprites:validate": "python3 scripts/sprite_pipeline.py validate",
+    "serve": "python3 -m http.server 4173",
+    "verify": "node --check src/main.js && node --check src/gameLogic.js && node --check src/spriteCatalog.js && python3 -m py_compile scripts/sprite_pipeline.py scripts/sprite_split_sheet.py scripts/sprite_extract_strip.py && npm test && npm run sprites:validate && npm run smoke"
+  }
+}

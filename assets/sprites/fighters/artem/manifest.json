@@ -1,0 +1,46 @@
+{
+  "contract": "zombie-liberation-hatch-pet-v1",
+  "id": "artem",
+  "name": "Артем Блискавка",
+  "group": "fighters",
+  "fallbackEmoji": "⚡",
+  "artBible": "assets/concept/zombie-liberation-art-bible-v2.png",
+  "base": "base.png",
+  "spritesheet": "spritesheet.webp",
+  "pngSpritesheet": "spritesheet.png",
+  "cellSize": 192,
+  "columns": 6,
+  "rows": 4,
+  "states": {
+    "idle": {
+      "row": 0,
+      "frames": 4,
+      "source": "source/idle-strip.png"
+    },
+    "attack": {
+      "row": 1,
+      "frames": 6,
+      "source": "source/attack-strip.png"
+    },
+    "hurt": {
+      "row": 2,
+      "frames": 4,
+      "source": "source/hurt-strip.png"
+    },
+    "victory": {
+      "row": 3,
+      "frames": 4,
+      "source": "source/victory-strip.png"
+    }
+  },
+  "qa": {
+    "contactSheet": "qa/contact-sheet.png",
+    "previews": {
+      "idle": "qa/previews/idle.gif",
+      "attack": "qa/previews/attack.gif",
+      "hurt": "qa/previews/hurt.gif",
+      "victory": "qa/previews/victory.gif"
+    },
+    "visualQa": "pending-human-or-agent-review"
+  }
+}
