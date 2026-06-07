@@ -9,6 +9,11 @@ import {
   isBossUnlocked,
   getBattleStats,
   fightEnemy,
+  createBattleSession,
+  applyHeroAttack,
+  applyEnemyCounterAttack,
+  getBattleOutcome,
+  resolveBattleVictory,
 } from '../src/gameLogic.js';
 
 test('level 1 victory rewards exactly 50 coins', () => {
@@ -72,4 +77,94 @@ test('battle simulation lets a starter fighter beat the first zombie', () => {
   assert.equal(result.victory, true);
   assert.equal(result.reward, 50);
   assert.equal(state.coins, 50);
+});
+
+test('step combat starts with full hero and enemy HP without mutating campaign', () => {
+  const state = createInitialState();
+  const beforeCoins = state.coins;
+  const beforeLevel = state.countries[0].currentLevel;
+
+  const result = createBattleSession(state, 'artem', 'ukraine');
+
+  assert.equal(result.created, true);
+  assert.equal(result.session.fighterId, 'artem');
+  assert.equal(result.session.countryId, 'ukraine');
+  assert.equal(result.session.countryLevel, 1);
+  assert.equal(result.session.hero.currentHp, result.session.hero.maxHp);
+  assert.equal(result.session.enemy.currentHp, result.session.enemy.maxHp);
+  assert.equal(state.coins, beforeCoins);
+  assert.equal(state.countries[0].currentLevel, beforeLevel);
+});
+
+test('first step attack only damages the enemy when damage is below enemy HP', () => {
+  const state = createInitialState();
+  const { session } = createBattleSession(state, 'artem', 'ukraine');
+
+  const result = applyHeroAttack(session);
+
+  assert.equal(result.damage, 34);
+  assert.equal(result.session.enemy.currentHp, 38);
+  assert.equal(result.session.hero.currentHp, 135);
+  assert.equal(getBattleOutcome(result.session), 'ongoing');
+  assert.equal(state.coins, 0);
+  assert.equal(state.countries[0].currentLevel, 1);
+});
+
+test('enemy counterattack only happens while enemy is alive and can defeat hero without campaign progress', () => {
+  const state = createInitialState();
+  let session = createBattleSession(state, 'artem', 'ukraine').session;
+  session = {
+    ...session,
+    hero: { ...session.hero, currentHp: 5 },
+    enemy: { ...session.enemy, currentHp: 38 },
+  };
+
+  const result = applyEnemyCounterAttack(session);
+
+  assert.equal(result.damage, 11);
+  assert.equal(result.session.hero.currentHp, 0);
+  assert.equal(result.session.enemy.currentHp, 38);
+  assert.equal(getBattleOutcome(result.session), 'defeat');
+  assert.equal(state.coins, 0);
+  assert.equal(state.countries[0].currentLevel, 1);
+});
+
+test('step combat victory resolves the level exactly once', () => {
+  const state = createInitialState();
+  let session = createBattleSession(state, 'artem', 'ukraine').session;
+
+  session = applyHeroAttack(session).session;
+  session = applyHeroAttack(session).session;
+  session = applyHeroAttack(session).session;
+
+  assert.equal(session.enemy.currentHp, 0);
+  assert.equal(getBattleOutcome(session), 'victory');
+
+  const result = resolveBattleVictory(state, session, () => 0.99);
+  assert.equal(result.completed, true);
+  assert.equal(result.reward, 50);
+  assert.equal(state.coins, 50);
+  assert.equal(state.countries[0].currentLevel, 2);
+
+  const duplicate = resolveBattleVictory(state, session, () => 0.99);
+  assert.equal(duplicate.completed, false);
+  assert.equal(duplicate.reason, 'stale_battle');
+  assert.equal(state.coins, 50);
+  assert.equal(state.countries[0].currentLevel, 2);
+});
+
+test('step combat rejects invalid, locked, freed, and stale battles without mutation', () => {
+  const state = createInitialState();
+  const locked = createBattleSession(state, 'sofia', 'ukraine');
+  const missing = createBattleSession(state, 'artem', 'missing-country');
+
+  assert.equal(locked.created, false);
+  assert.equal(locked.reason, 'invalid_battle');
+  assert.equal(missing.created, false);
+  assert.equal(missing.reason, 'invalid_battle');
+
+  state.countries[0].freed = true;
+  const freed = createBattleSession(state, 'artem', 'ukraine');
+  assert.equal(freed.created, false);
+  assert.equal(freed.reason, 'invalid_battle');
 });
