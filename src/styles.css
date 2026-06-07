@@ -218,6 +218,75 @@ h1 span { color: #79f09c; display: block; margin-top: .04em; }
 .saved-mark { position: relative; z-index: 1; display: grid; place-items: center; width: 150px; height: 150px; border-radius: 34px; background: rgba(255,255,255,.58); font-size: clamp(4rem, 10vw, 6.5rem); filter: drop-shadow(0 10px 0 rgba(32,47,87,.08)); }
 .sprite-name { font-weight: 950; text-align: center; }
 .sprite-stats { color: var(--muted); font-weight: 800; font-size: .9rem; }
+.hp-panel {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  gap: 4px;
+  width: min(190px, 86%);
+  padding: 7px 9px;
+  border-radius: 14px;
+  background: rgba(255,255,255,.72);
+  color: var(--muted);
+  font-size: .78rem;
+  font-weight: 900;
+}
+.hp-meter {
+  display: block;
+  width: 100%;
+  height: 12px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #dfe7f3;
+  box-shadow: inset 0 2px 5px rgba(28,45,86,.16);
+}
+.hp-fill {
+  display: block;
+  height: 100%;
+  min-width: 0;
+  border-radius: inherit;
+  transition: width 220ms ease;
+}
+.hp-fill.high { background: linear-gradient(90deg, #25b66c, #72ec93); }
+.hp-fill.mid { background: linear-gradient(90deg, #f2b84b, #ffe772); }
+.hp-fill.low { background: linear-gradient(90deg, #ff4f7b, #ff8b38); }
+.hp-text, .damage-line {
+  display: block;
+  line-height: 1.1;
+  text-align: center;
+}
+.damage-line {
+  color: #394869;
+  font-size: .72rem;
+}
+.damage-popup {
+  position: absolute;
+  top: 18px;
+  left: 50%;
+  z-index: 4;
+  min-width: 54px;
+  transform: translateX(-50%);
+  border-radius: 999px;
+  padding: 5px 10px;
+  background: #fff;
+  color: #ff315f;
+  font-size: 1.35rem;
+  font-weight: 1000;
+  line-height: 1;
+  box-shadow: 0 8px 0 rgba(255,49,95,.18), 0 14px 24px rgba(48,65,110,.18);
+  animation: damageFloat 760ms ease-out 1;
+  pointer-events: none;
+}
+.battle-stage.phase-hero-attack,
+.battle-stage.phase-enemy-attack {
+  outline: 4px solid rgba(255,255,255,.72);
+}
+.battle-stage.phase-victory {
+  outline: 4px solid rgba(121,240,156,.75);
+}
+.battle-stage.phase-defeat {
+  outline: 4px solid rgba(255,122,60,.62);
+}
 .versus { position: relative; z-index: 1; display: grid; place-items: center; width: 72px; height: 72px; border-radius: 50%; background: #ff4f7b; color: white; font-weight: 1000; box-shadow: 0 10px 0 rgba(255,79,123,.25); transform: rotate(-8deg); }
 .actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 12px; }
 .primary { color: white; background: linear-gradient(135deg, #ff7a3c, #ff3f76); }
@@ -266,6 +335,11 @@ h1 span { color: #79f09c; display: block; margin-top: .04em; }
   35% { transform: translateY(4px) rotate(-2deg); }
   70% { transform: translateY(0) rotate(2deg); }
 }
+@keyframes damageFloat {
+  0% { opacity: 0; transform: translateX(-50%) translateY(8px) scale(.84); }
+  18% { opacity: 1; transform: translateX(-50%) translateY(0) scale(1.08); }
+  100% { opacity: 0; transform: translateX(-50%) translateY(-30px) scale(.96); }
+}
 
 @media (max-width: 880px) {
   .hero-card, .game-grid, .status-row { grid-template-columns: 1fr; }
@@ -276,6 +350,8 @@ h1 span { color: #79f09c; display: block; margin-top: .04em; }
   .art-bible-shot figcaption { left: 14px; right: 14px; max-width: none; }
   .battle-stage { grid-template-columns: 1fr; }
   .versus { margin: 0 auto; }
+  .hp-panel { width: min(220px, 92%); }
+  .damage-popup { top: 12px; font-size: 1.2rem; }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -284,5 +360,10 @@ h1 span { color: #79f09c; display: block; margin-top: .04em; }
     animation-iteration-count: 1 !important;
     scroll-behavior: auto !important;
     transition-duration: 0.001ms !important;
+  }
+  .damage-popup {
+    animation: none !important;
+    opacity: 1;
+    transform: translateX(-50%);
   }
 }

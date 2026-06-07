@@ -28,6 +28,15 @@ assert.match(main, /window\.__zombieGameActions/);
 assert.match(main, /animatedSpriteMarkup/);
 assert.match(main, /data-sprite-atlas/);
 assert.match(main, /spriteStates/);
+assert.match(main, /createBattleSession/);
+assert.match(main, /applyHeroAttack/);
+assert.match(main, /applyEnemyCounterAttack/);
+assert.match(main, /resolveBattleVictory/);
+assert.match(main, /activeBattle/);
+assert.match(main, /isBattleAnimating/);
+assert.match(main, /renderHpPanel/);
+assert.match(main, /renderDamagePopup/);
+assert.match(main, /__zombieGameBattle/);
 
 const css = await readFile('src/styles.css', 'utf8');
 assert.match(css, /\.world-map/);
@@ -41,5 +50,12 @@ assert.match(css, /petAttack/);
 assert.match(css, /\.animated-sprite/);
 assert.match(css, /@keyframes spriteAtlas/);
 assert.match(css, /\.sprite-failed/);
+assert.match(css, /\.hp-panel/);
+assert.match(css, /\.hp-meter/);
+assert.match(css, /\.hp-fill/);
+assert.match(css, /\.damage-popup/);
+assert.match(css, /@keyframes damageFloat/);
+assert.match(css, /\.battle-stage\.phase-hero-attack/);
+assert.match(css, /\.battle-stage\.phase-enemy-attack/);
 
 console.log('Smoke check passed: app shell, map, QA hooks, and generated atlas sprite animation are present.');
