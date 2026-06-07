@@ -68,6 +68,7 @@ function clearActiveBattle() {
   battleToken += 1;
   activeBattle = null;
   battlePhase = 'idle';
+  lastBattleAnimation = null;
   lastDamagePopup = null;
   isBattleAnimating = false;
 }
