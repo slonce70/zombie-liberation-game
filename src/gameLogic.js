@@ -290,7 +290,7 @@ export function resolveBattleVictory(state, session, random = Math.random) {
 
   return {
     completed: true,
-    fighterName: session.fighterName,
+    fighterName: fighter.name,
     enemy: session.enemy,
     reward: progress.reward,
     progress,

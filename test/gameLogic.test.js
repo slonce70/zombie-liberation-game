@@ -206,8 +206,10 @@ test('step combat victory resolves the level exactly once', () => {
   assert.equal(session.enemy.currentHp, 0);
   assert.equal(getBattleOutcome(session), 'victory');
 
+  session = { ...session, fighterName: 'Forged Winner' };
   const result = resolveBattleVictory(state, session, () => 0.99);
   assert.equal(result.completed, true);
+  assert.equal(result.fighterName, 'Артем Блискавка');
   assert.equal(result.reward, 50);
   assert.equal(state.coins, 50);
   assert.equal(state.countries[0].currentLevel, 2);
