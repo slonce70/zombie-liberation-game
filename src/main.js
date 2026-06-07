@@ -37,6 +37,7 @@ let activeBattle = null;
 let battlePhase = 'idle';
 let lastDamagePopup = null;
 let isBattleAnimating = false;
+let battleToken = 0;
 
 function escapeHtml(value) {
   return String(value)
@@ -64,6 +65,7 @@ function wait(ms) {
 }
 
 function clearActiveBattle() {
+  battleToken += 1;
   activeBattle = null;
   battlePhase = 'idle';
   lastDamagePopup = null;
@@ -76,6 +78,14 @@ function battleMatches(fighter, country) {
     && activeBattle.fighterId === fighter.id
     && activeBattle.countryId === country.id
     && activeBattle.countryLevel === country.currentLevel
+  );
+}
+
+function isCurrentBattleRun(runToken) {
+  return Boolean(
+    runToken === battleToken
+    && activeBattle
+    && battleMatches(currentFighter(), currentCountry())
   );
 }
 
@@ -351,6 +361,8 @@ async function handleFight() {
     activeBattle = created.session;
   }
 
+  battleToken += 1;
+  const runToken = battleToken;
   isBattleAnimating = true;
   battlePhase = 'hero-attack';
   const heroAttack = applyHeroAttack(activeBattle);
@@ -359,12 +371,14 @@ async function handleFight() {
   lastDamagePopup = { target: 'enemy', amount: heroAttack.damage };
   render();
   await wait(HERO_ATTACK_MS);
+  if (!isCurrentBattleRun(runToken)) return;
 
   if (getBattleOutcome(activeBattle) === 'victory') {
     battlePhase = 'victory';
     lastDamagePopup = null;
     render();
     await wait(OUTCOME_PAUSE_MS);
+    if (!isCurrentBattleRun(runToken)) return;
 
     const result = resolveBattleVictory(state, activeBattle);
     if (result.completed) {
@@ -390,6 +404,7 @@ async function handleFight() {
   lastDamagePopup = { target: 'hero', amount: enemyAttack.damage };
   render();
   await wait(ENEMY_ATTACK_MS);
+  if (!isCurrentBattleRun(runToken)) return;
 
   if (getBattleOutcome(activeBattle) === 'defeat') {
     battlePhase = 'defeat';
@@ -411,7 +426,7 @@ async function handleFight() {
   render();
 }
 
-function handleBoss() {
+async function handleBoss() {
   clearActiveBattle();
   const result = fightBoss(state, state.selectedFighterId);
   if (result.victory) {
@@ -422,6 +437,12 @@ function handleBoss() {
     lastBattleAnimation = 'enemy';
     addLog(state, 'Бос поки занадто сильний — прокачай бійців до вищих рівнів.');
   }
+  saveGame(storage, state);
+  render();
+  await wait(HERO_ATTACK_MS);
+  lastBattleAnimation = null;
+  lastBossAnimation = false;
+  render();
 }
 
 function handleUpgrade(fighterId) {
@@ -500,7 +521,10 @@ app.addEventListener('click', (event) => {
     selectFighter(state, target.dataset.fighter);
   }
   if (target.dataset.upgrade) handleUpgrade(target.dataset.upgrade);
-  if (target.dataset.action === 'boss') handleBoss();
+  if (target.dataset.action === 'boss') {
+    void handleBoss();
+    return;
+  }
   if (target.dataset.action === 'reset-save') handleReset();
   if (target.dataset.action === 'dev-level10') devLevel10();
   if (target.dataset.action === 'dev-free-country') devFreeCountry();
