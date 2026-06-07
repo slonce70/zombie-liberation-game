@@ -138,16 +138,60 @@ test('enemy counterattack only happens while enemy is alive and can defeat hero 
 test('enemy counterattack skip leaves provenance count unchanged', () => {
   const state = createInitialState();
   const baseSession = createBattleSession(state, 'artem', 'ukraine').session;
-  const session = {
+  const enemyDefeatedSession = {
     ...baseSession,
     enemy: { ...baseSession.enemy, currentHp: 0 },
   };
+  const heroDefeatedSession = {
+    ...baseSession,
+    hero: { ...baseSession.hero, currentHp: 0 },
+  };
 
-  const result = applyEnemyCounterAttack(session);
+  const enemyDefeatedResult = applyEnemyCounterAttack(enemyDefeatedSession);
+  const heroDefeatedResult = applyEnemyCounterAttack(heroDefeatedSession);
 
-  assert.equal(result.skipped, true);
-  assert.equal(result.damage, 0);
-  assert.equal(result.session.enemyCounterCount, 0);
+  assert.equal(enemyDefeatedResult.skipped, true);
+  assert.equal(enemyDefeatedResult.damage, 0);
+  assert.equal(enemyDefeatedResult.session.enemyCounterCount, 0);
+  assert.equal(heroDefeatedResult.skipped, true);
+  assert.equal(heroDefeatedResult.damage, 0);
+  assert.equal(heroDefeatedResult.session.enemyCounterCount, 0);
+});
+
+test('defeated hero cannot keep attacking or resolve victory', () => {
+  const state = createInitialState();
+  state.countries[0].currentLevel = 25;
+  let session = createBattleSession(state, 'artem', 'ukraine').session;
+
+  while (getBattleOutcome(session) === 'ongoing') {
+    session = applyHeroAttack(session).session;
+    session = applyEnemyCounterAttack(session).session;
+  }
+
+  assert.equal(getBattleOutcome(session), 'defeat');
+  const heroAttackCountAfterDefeat = session.heroAttackCount;
+  const enemyHpAfterDefeat = session.enemy.currentHp;
+
+  const skippedAttack = applyHeroAttack(session);
+
+  assert.equal(skippedAttack.skipped, true);
+  assert.equal(skippedAttack.damage, 0);
+  assert.equal(skippedAttack.session.heroAttackCount, heroAttackCountAfterDefeat);
+  assert.equal(skippedAttack.session.enemy.currentHp, enemyHpAfterDefeat);
+
+  session = skippedAttack.session;
+  for (let i = 0; i < 20; i += 1) {
+    session = applyHeroAttack(session).session;
+  }
+
+  assert.equal(session.enemy.currentHp, enemyHpAfterDefeat);
+  assert.equal(getBattleOutcome(session), 'defeat');
+
+  const result = resolveBattleVictory(state, session, () => 0.99);
+  assert.equal(result.completed, false);
+  assert.equal(result.reason, 'stale_battle');
+  assert.equal(state.coins, 0);
+  assert.equal(state.countries[0].currentLevel, 25);
 });
 
 test('step combat victory resolves the level exactly once', () => {

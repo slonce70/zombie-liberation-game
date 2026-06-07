@@ -211,6 +211,10 @@ export function createBattleSession(state, fighterId, countryId) {
 
 export function applyHeroAttack(session) {
   const next = copyBattleSession(session);
+  if (next.hero.currentHp <= 0 || next.enemy.currentHp <= 0) {
+    return { session: next, damage: 0, target: 'enemy', skipped: true };
+  }
+
   const damage = Math.max(0, next.hero.damage);
   next.enemy.currentHp = clampHp(next.enemy.currentHp - damage, next.enemy.maxHp);
   next.heroAttackCount = (next.heroAttackCount ?? 0) + 1;
@@ -219,7 +223,7 @@ export function applyHeroAttack(session) {
 
 export function applyEnemyCounterAttack(session) {
   const next = copyBattleSession(session);
-  if (next.enemy.currentHp <= 0) {
+  if (next.enemy.currentHp <= 0 || next.hero.currentHp <= 0) {
     return { session: next, damage: 0, target: 'hero', skipped: true };
   }
 
@@ -231,8 +235,8 @@ export function applyEnemyCounterAttack(session) {
 
 export function getBattleOutcome(session) {
   if (!session) return 'idle';
-  if (session.enemy.currentHp <= 0) return 'victory';
   if (session.hero.currentHp <= 0) return 'defeat';
+  if (session.enemy.currentHp <= 0) return 'victory';
   return 'ongoing';
 }
 
@@ -248,6 +252,7 @@ export function resolveBattleVictory(state, session, random = Math.random) {
     || country.currentLevel !== session.countryLevel
     || !session.hero
     || !session.enemy
+    || session.hero.currentHp <= 0
     || getBattleOutcome(session) !== 'victory'
   ) {
     return { completed: false, reason: 'stale_battle' };
@@ -256,8 +261,12 @@ export function resolveBattleVictory(state, session, random = Math.random) {
   const stats = getBattleStats(fighter);
   const enemy = getEnemyForLevel(country.currentLevel);
   const heroAttackCount = session.heroAttackCount;
+  const enemyCounterCount = session.enemyCounterCount;
   const expectedEnemyHp = Number.isInteger(heroAttackCount)
     ? clampHp(session.enemy.maxHp - session.hero.damage * heroAttackCount, session.enemy.maxHp)
+    : null;
+  const expectedHeroHp = Number.isInteger(enemyCounterCount)
+    ? clampHp(session.hero.maxHp - session.enemy.damage * enemyCounterCount, session.hero.maxHp)
     : null;
   if (
     session.hero.maxHp !== stats.hp
@@ -269,6 +278,9 @@ export function resolveBattleVictory(state, session, random = Math.random) {
     || !Number.isInteger(heroAttackCount)
     || heroAttackCount <= 0
     || session.enemy.currentHp !== expectedEnemyHp
+    || !Number.isInteger(enemyCounterCount)
+    || enemyCounterCount < 0
+    || session.hero.currentHp !== expectedHeroHp
   ) {
     return { completed: false, reason: 'stale_battle' };
   }
