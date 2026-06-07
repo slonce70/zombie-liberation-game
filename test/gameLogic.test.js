@@ -153,6 +153,24 @@ test('step combat victory resolves the level exactly once', () => {
   assert.equal(state.countries[0].currentLevel, 2);
 });
 
+test('step combat rejects forged victory sessions without mutation', () => {
+  const state = createInitialState();
+  const validSession = createBattleSession(state, 'artem', 'ukraine').session;
+  const forgedSession = {
+    ...validSession,
+    fighterId: 'sofia',
+    fighterName: 'Софія Щит',
+    enemy: { ...validSession.enemy, currentHp: 0 },
+  };
+
+  const result = resolveBattleVictory(state, forgedSession, () => 0.99);
+
+  assert.equal(result.completed, false);
+  assert.equal(result.reason, 'stale_battle');
+  assert.equal(state.coins, 0);
+  assert.equal(state.countries[0].currentLevel, 1);
+});
+
 test('step combat rejects invalid, locked, freed, and stale battles without mutation', () => {
   const state = createInitialState();
   const locked = createBattleSession(state, 'sofia', 'ukraine');

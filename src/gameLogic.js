@@ -234,12 +234,30 @@ export function getBattleOutcome(session) {
 
 export function resolveBattleVictory(state, session, random = Math.random) {
   const country = findCountry(state, session?.countryId);
+  const fighter = findFighter(state, session?.fighterId);
   if (
     !session
+    || !fighter
+    || !fighter.unlocked
     || !country
     || country.freed
     || country.currentLevel !== session.countryLevel
+    || !session.hero
+    || !session.enemy
     || getBattleOutcome(session) !== 'victory'
+  ) {
+    return { completed: false, reason: 'stale_battle' };
+  }
+
+  const stats = getBattleStats(fighter);
+  const enemy = getEnemyForLevel(country.currentLevel);
+  if (
+    session.hero.maxHp !== stats.hp
+    || session.hero.damage !== stats.damage
+    || session.enemy.name !== enemy.name
+    || session.enemy.emoji !== enemy.emoji
+    || session.enemy.maxHp !== enemy.hp
+    || session.enemy.damage !== enemy.damage
   ) {
     return { completed: false, reason: 'stale_battle' };
   }
