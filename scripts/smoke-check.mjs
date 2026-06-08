@@ -40,6 +40,7 @@ assert.match(main, /renderHpPanel/);
 assert.match(main, /renderDamagePopup/);
 assert.match(main, /renderActionNotice/);
 assert.match(main, /actionNotice/);
+assert.match(main, /spriteLoadStates/);
 assert.match(main, /__zombieGameBattle/);
 assert.match(main, /mobile-quick-actions/);
 assert.match(main, /focusBattleOnMobile/);
@@ -47,6 +48,7 @@ assert.match(main, /result\.reason === 'not_enough_coins'/, 'failed upgrades sho
 assert.match(main, /if \(!result\.upgraded\) \{[\s\S]*?return;\n  \}/, 'failed upgrades must not clear an active battle');
 assert.match(main, /new URL\(path, document\.baseURI\)\.href/, 'sprite CSS URLs should resolve from the document, not src/styles.css');
 assert.match(main, /--sprite-steps:\$\{steps\}/, 'sprite animation should avoid stepping into an empty atlas cell');
+assert.match(main, /spriteLoadStates\.set\(atlas, 'loaded'\)/, 'loaded sprite atlases should be cached across rerenders');
 assert.doesNotMatch(main, /url\('\/\$\{atlas\}'\)/, 'sprite atlas URLs must remain relative for GitHub Pages project sites');
 
 const css = await readFile('src/styles.css', 'utf8');
@@ -59,6 +61,7 @@ assert.match(css, /prefers-reduced-motion/);
 assert.match(css, /\.recommendation/);
 assert.match(css, /petAttack/);
 assert.match(css, /\.animated-sprite/);
+assert.match(css, /\.sprite-fallback \{[^}]*opacity: 0/s, 'fallback emoji should stay hidden while atlas probes load');
 assert.match(css, /@keyframes spriteAtlas/);
 assert.match(css, /\.sprite-failed/);
 assert.match(css, /\.hp-panel/);

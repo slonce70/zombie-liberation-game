@@ -39,6 +39,7 @@ let lastDamagePopup = null;
 let isBattleAnimating = false;
 let battleToken = 0;
 let actionNotice = null;
+const spriteLoadStates = new Map();
 
 function escapeHtml(value) {
   return String(value)
@@ -162,14 +163,17 @@ function assetUrl(path) {
 function animatedSpriteMarkup(sprite, stateName = 'idle', fallback = sprite.fallbackEmoji, extraClass = '') {
   const row = spriteRowIndex(stateName);
   const frames = sprite.frameContract.rows[stateName]?.frames || sprite.frameContract.rows.idle.frames;
-  const atlas = escapeHtml(assetUrl(sprite.atlas));
+  const atlas = assetUrl(sprite.atlas);
+  const atlasState = spriteLoadStates.get(atlas);
+  const loadClass = atlasState ? ` sprite-${atlasState}` : ' sprite-loading';
+  const safeAtlas = escapeHtml(atlas);
   const steps = Math.max(1, frames - 1);
   const shift = steps * 192;
   return `
-    <span class="animated-sprite state-${stateName} ${extraClass}"
-      data-sprite-atlas="${atlas}"
+    <span class="animated-sprite state-${stateName} ${extraClass}${loadClass}"
+      data-sprite-atlas="${safeAtlas}"
       data-sprite-state="${stateName}"
-      style="--sprite-url:url('${atlas}');--sprite-row-y:-${row * 192}px;--sprite-shift-x:-${shift}px;--sprite-steps:${steps};--sprite-duration:${spriteDuration(stateName)};">
+      style="--sprite-url:url('${safeAtlas}');--sprite-row-y:-${row * 192}px;--sprite-shift-x:-${shift}px;--sprite-steps:${steps};--sprite-duration:${spriteDuration(stateName)};">
       <span class="sprite-atlas-track" aria-hidden="true"></span>
       <span class="sprite-fallback" aria-hidden="true">${escapeHtml(fallback)}</span>
     </span>
@@ -179,9 +183,24 @@ function animatedSpriteMarkup(sprite, stateName = 'idle', fallback = sprite.fall
 function hydrateSpriteFallbacks() {
   document.querySelectorAll('.animated-sprite[data-sprite-atlas]').forEach((node) => {
     const atlas = node.dataset.spriteAtlas;
+    const knownState = spriteLoadStates.get(atlas);
+    if (knownState) {
+      node.classList.remove('sprite-loading');
+      node.classList.add(`sprite-${knownState}`);
+      return;
+    }
+
     const probe = new Image();
-    probe.addEventListener('load', () => node.classList.add('sprite-loaded'), { once: true });
-    probe.addEventListener('error', () => node.classList.add('sprite-failed'), { once: true });
+    probe.addEventListener('load', () => {
+      spriteLoadStates.set(atlas, 'loaded');
+      node.classList.remove('sprite-loading');
+      node.classList.add('sprite-loaded');
+    }, { once: true });
+    probe.addEventListener('error', () => {
+      spriteLoadStates.set(atlas, 'failed');
+      node.classList.remove('sprite-loading');
+      node.classList.add('sprite-failed');
+    }, { once: true });
     probe.src = atlas;
   });
 }
