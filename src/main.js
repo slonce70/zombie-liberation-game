@@ -71,8 +71,10 @@ function clearActiveBattle() {
   activeBattle = null;
   battlePhase = 'idle';
   lastBattleAnimation = null;
+  lastBossAnimation = false;
   lastDamagePopup = null;
   isBattleAnimating = false;
+  actionNotice = null;
 }
 
 function setActionNotice(kind, message) {
@@ -251,6 +253,7 @@ function render() {
       : { currentHp: enemy.hp, maxHp: enemy.hp, damage: enemy.damage }
     : null;
   const fightDisabled = country.freed || isBattleAnimating;
+  const bossDisabled = isBattleAnimating || !(summary.bossUnlocked && !state.bossDefeated);
   const fightLabel = activeBattle ? '⚔️ Удар' : '⚔️ Битися з зомбі';
   const quickFightLabel = activeBattle ? '⚔️ Удар' : '⚔️ Бій';
   const battlePhaseClass = battlePhase === 'idle' ? '' : `phase-${battlePhase}`;
@@ -285,7 +288,7 @@ function render() {
 
     <nav class="mobile-quick-actions" aria-label="Швидкі дії">
       <button class="primary" data-action="fight" aria-label="${activeBattle ? 'Удар' : 'Битися з зомбі'}" ${fightDisabled ? 'disabled' : ''}>${quickFightLabel}</button>
-      <button data-action="boss" aria-label="Битва з босом" ${summary.bossUnlocked && !state.bossDefeated ? '' : 'disabled'}>👑 Бос</button>
+      <button data-action="boss" aria-label="Битва з босом" ${bossDisabled ? 'disabled' : ''}>👑 Бос</button>
       <button data-action="reset-save" aria-label="Нова гра">🔄 Нова</button>
     </nav>
 
@@ -332,7 +335,7 @@ function render() {
 
         <div class="actions">
           <button class="primary" data-action="fight" ${fightDisabled ? 'disabled' : ''}>${fightLabel}</button>
-          <button data-action="boss" ${summary.bossUnlocked && !state.bossDefeated ? '' : 'disabled'}>👑 Битва з босом</button>
+          <button data-action="boss" ${bossDisabled ? 'disabled' : ''}>👑 Битва з босом</button>
           <button data-action="reset-save">🔄 Нова гра</button>
           ${qaMode ? renderQaControls() : ''}
         </div>
@@ -501,7 +504,11 @@ async function handleFight() {
 }
 
 async function handleBoss() {
+  if (isBattleAnimating) return;
   clearActiveBattle();
+  const runToken = battleToken;
+  isBattleAnimating = true;
+
   const result = fightBoss(state, state.selectedFighterId);
   if (result.victory) {
     lastBattleAnimation = 'hero';
@@ -514,8 +521,11 @@ async function handleBoss() {
   saveGame(storage, state);
   render();
   await wait(HERO_ATTACK_MS);
+  if (runToken !== battleToken) return;
+
   lastBattleAnimation = null;
   lastBossAnimation = false;
+  isBattleAnimating = false;
   render();
 }
 
@@ -597,12 +607,10 @@ app.addEventListener('click', (event) => {
 
   if (target.dataset.country) {
     clearActiveBattle();
-    clearActionNotice();
     selectCountry(state, target.dataset.country);
   }
   if (target.dataset.fighter) {
     clearActiveBattle();
-    clearActionNotice();
     selectFighter(state, target.dataset.fighter);
   }
   if (target.dataset.upgrade) handleUpgrade(target.dataset.upgrade);
