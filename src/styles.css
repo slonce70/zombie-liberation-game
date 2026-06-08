@@ -81,6 +81,11 @@ button:disabled { opacity: 0.48; cursor: not-allowed; }
   margin: 0;
   z-index: -1;
 }
+.art-bible-shot picture {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
 .art-bible-shot img {
   width: 100%;
   height: 100%;
@@ -290,6 +295,7 @@ h1 span { color: #79f09c; display: block; margin-top: .04em; }
 .versus { position: relative; z-index: 1; display: grid; place-items: center; width: 72px; height: 72px; border-radius: 50%; background: #ff4f7b; color: white; font-weight: 1000; box-shadow: 0 10px 0 rgba(255,79,123,.25); transform: rotate(-8deg); }
 .actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 12px; }
 .primary { color: white; background: linear-gradient(135deg, #ff7a3c, #ff3f76); }
+.mobile-quick-actions { display: none; }
 
 .fighters { grid-row: span 2; }
 .fighters h2, .story h2 { margin-top: 0; }
@@ -352,6 +358,111 @@ h1 span { color: #79f09c; display: block; margin-top: .04em; }
   .versus { margin: 0 auto; }
   .hp-panel { width: min(220px, 92%); }
   .damage-popup { top: 12px; font-size: 1.2rem; }
+}
+
+@media (max-width: 700px) {
+  body { padding-bottom: calc(84px + env(safe-area-inset-bottom)); }
+  .game-shell {
+    width: min(100% - 20px, 430px);
+    padding-top: 10px;
+    padding-bottom: 104px;
+  }
+  .splash-hero {
+    min-height: min(620px, calc(100dvh - 22px));
+    border-width: 4px;
+    border-radius: 28px;
+  }
+  .splash-copy {
+    margin-top: clamp(205px, 34dvh, 260px);
+    padding: 18px;
+    border-radius: 24px;
+  }
+  h1 {
+    font-size: clamp(2rem, 10vw, 2.65rem);
+    letter-spacing: -0.025em;
+  }
+  .subtitle {
+    margin-bottom: 0;
+    font-size: 1rem;
+  }
+  .hero-pills span {
+    padding: 7px 9px;
+    font-size: .78rem;
+  }
+  .splash-hero .world-map {
+    top: 14px;
+    right: 14px;
+    width: calc(100% - 28px);
+    padding: 11px;
+    border-width: 4px;
+  }
+  .world-map h2 { font-size: 1rem; }
+  .map-nodes { gap: 6px; }
+  .map-node {
+    min-height: 54px;
+    border-radius: 16px;
+  }
+  .mobile-quick-actions {
+    position: fixed;
+    left: max(10px, env(safe-area-inset-left));
+    right: max(10px, env(safe-area-inset-right));
+    bottom: max(10px, env(safe-area-inset-bottom));
+    z-index: 20;
+    display: grid;
+    grid-template-columns: 1.15fr .85fr .85fr;
+    gap: 8px;
+    width: min(430px, calc(100vw - 20px));
+    margin: 0 auto;
+    padding: 9px;
+    border: 3px solid rgba(255,255,255,.78);
+    border-radius: 24px;
+    background: rgba(255,255,255,.88);
+    box-shadow: 0 16px 40px rgba(31, 52, 98, .22);
+    backdrop-filter: blur(14px);
+  }
+  .mobile-quick-actions button {
+    min-height: 48px;
+    padding: 0.7rem 0.65rem;
+    box-shadow: 0 5px 0 rgba(27, 48, 99, 0.10);
+    white-space: nowrap;
+  }
+  .arena .actions { display: none; }
+  .panel { padding: 14px; border-radius: 22px; }
+  .arena { min-height: auto; scroll-margin-top: 10px; }
+  .country-banner {
+    gap: 10px;
+    padding: 13px;
+    border-radius: 20px;
+  }
+  .country-icon {
+    width: 52px;
+    height: 52px;
+    border-radius: 16px;
+    font-size: 1.75rem;
+  }
+  .battle-stage {
+    min-height: auto;
+    gap: 10px;
+    padding: 16px 10px;
+    border-radius: 24px;
+    scroll-margin-top: 36px;
+    scroll-margin-bottom: 96px;
+  }
+  .sprite {
+    min-height: 214px;
+    gap: 6px;
+    border-radius: 22px;
+  }
+  .sprite-fallback { font-size: 4rem; }
+  .versus {
+    width: 58px;
+    height: 58px;
+    font-size: .86rem;
+  }
+  .hp-panel {
+    width: min(230px, 94%);
+    font-size: .76rem;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

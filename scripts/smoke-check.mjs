@@ -21,6 +21,7 @@ assert.match(main, /saveGame/);
 assert.match(main, /getCampaignSummary/);
 assert.match(main, /getSpriteForEntity/);
 assert.match(main, /zombie-liberation-art-bible-v2/);
+assert.match(main, /zombie-liberation-art-bible-v2\.webp/);
 assert.match(main, /qaMode/);
 assert.match(main, /dev-level10/);
 assert.match(main, /dev-free-all/);
@@ -38,6 +39,8 @@ assert.match(main, /isBattleAnimating/);
 assert.match(main, /renderHpPanel/);
 assert.match(main, /renderDamagePopup/);
 assert.match(main, /__zombieGameBattle/);
+assert.match(main, /mobile-quick-actions/);
+assert.match(main, /focusBattleOnMobile/);
 assert.doesNotMatch(main, /url\('\/\$\{atlas\}'\)/, 'sprite atlas URLs must remain relative for GitHub Pages project sites');
 
 const css = await readFile('src/styles.css', 'utf8');
@@ -59,5 +62,7 @@ assert.match(css, /\.damage-popup/);
 assert.match(css, /@keyframes damageFloat/);
 assert.match(css, /\.battle-stage\.phase-hero-attack/);
 assert.match(css, /\.battle-stage\.phase-enemy-attack/);
+assert.match(css, /\.mobile-quick-actions/);
+assert.match(css, /100dvh/);
 
 console.log('Smoke check passed: app shell, map, QA hooks, and generated atlas sprite animation are present.');

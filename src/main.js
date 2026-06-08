@@ -176,6 +176,16 @@ function enemySpriteState(enemy) {
   return 'idle';
 }
 
+function focusBattleOnMobile() {
+  if (!window.matchMedia('(max-width: 700px)').matches) return;
+
+  window.requestAnimationFrame(() => {
+    const arena = document.querySelector('.battle-stage');
+    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    arena?.scrollIntoView({ block: 'start', behavior: reduceMotion ? 'auto' : 'smooth' });
+  });
+}
+
 function render() {
   const country = currentCountry();
   const fighter = currentFighter();
@@ -199,12 +209,16 @@ function render() {
     : null;
   const fightDisabled = country.freed || isBattleAnimating;
   const fightLabel = activeBattle ? '⚔️ Удар' : '⚔️ Битися з зомбі';
+  const quickFightLabel = activeBattle ? '⚔️ Удар' : '⚔️ Бій';
   const battlePhaseClass = battlePhase === 'idle' ? '' : `phase-${battlePhase}`;
 
   app.innerHTML = `
     <section class="hero-card splash-hero" aria-label="ImageGen art bible і головна мапа пригоди">
       <figure class="concept-preview art-bible-shot">
-        <img src="assets/concept/zombie-liberation-art-bible-v2.png" alt="Згенерований арт-напрям гри: пʼять героїв, зомбі-бос і мапа країн" />
+        <picture>
+          <source srcset="assets/concept/zombie-liberation-art-bible-v2.webp" type="image/webp" />
+          <img src="assets/concept/zombie-liberation-art-bible-v2.png" alt="Згенерований арт-напрям гри: пʼять героїв, зомбі-бос і мапа країн" decoding="async" fetchpriority="high" />
+        </picture>
         <figcaption>ImageGen art bible v2 → UI, мапа, герої та Hatch Pet-like sprite contract.</figcaption>
       </figure>
       <div class="title-block splash-copy">
@@ -225,6 +239,12 @@ function render() {
         </div>
       </aside>
     </section>
+
+    <nav class="mobile-quick-actions" aria-label="Швидкі дії">
+      <button class="primary" data-action="fight" aria-label="${activeBattle ? 'Удар' : 'Битися з зомбі'}" ${fightDisabled ? 'disabled' : ''}>${quickFightLabel}</button>
+      <button data-action="boss" aria-label="Битва з босом" ${summary.bossUnlocked && !state.bossDefeated ? '' : 'disabled'}>👑 Бос</button>
+      <button data-action="reset-save" aria-label="Нова гра">🔄 Нова</button>
+    </nav>
 
     <section class="status-row" aria-label="Статус кампанії">
       <article class="stat-card coins">🪙 <strong>${state.coins}</strong><span>монет</span></article>
@@ -371,6 +391,7 @@ async function handleFight() {
   lastBattleAnimation = 'hero';
   lastDamagePopup = { target: 'enemy', amount: heroAttack.damage };
   render();
+  focusBattleOnMobile();
   await wait(HERO_ATTACK_MS);
   if (!isCurrentBattleRun(runToken)) return;
 
@@ -404,6 +425,7 @@ async function handleFight() {
   lastBattleAnimation = 'enemy';
   lastDamagePopup = { target: 'hero', amount: enemyAttack.damage };
   render();
+  focusBattleOnMobile();
   await wait(ENEMY_ATTACK_MS);
   if (!isCurrentBattleRun(runToken)) return;
 
