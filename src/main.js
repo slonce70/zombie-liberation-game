@@ -145,7 +145,7 @@ function animatedSpriteMarkup(sprite, stateName = 'idle', fallback = sprite.fall
     <span class="animated-sprite state-${stateName} ${extraClass}"
       data-sprite-atlas="${atlas}"
       data-sprite-state="${stateName}"
-      style="--sprite-url:url('/${atlas}');--sprite-row-y:-${row * 192}px;--sprite-shift-x:-${frames * 192}px;--sprite-frames:${frames};--sprite-duration:${spriteDuration(stateName)};">
+      style="--sprite-url:url('${atlas}');--sprite-row-y:-${row * 192}px;--sprite-shift-x:-${frames * 192}px;--sprite-frames:${frames};--sprite-duration:${spriteDuration(stateName)};">
       <span class="sprite-atlas-track" aria-hidden="true"></span>
       <span class="sprite-fallback" aria-hidden="true">${escapeHtml(fallback)}</span>
     </span>

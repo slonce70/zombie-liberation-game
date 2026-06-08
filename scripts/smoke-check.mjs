@@ -9,6 +9,7 @@ for (const file of files) {
 
 const html = await readFile('index.html', 'utf8');
 assert.match(html, /src\/main\.js/);
+assert.doesNotMatch(html, /(src|href)="\//, 'GitHub Pages requires relative asset paths');
 
 const main = await readFile('src/main.js', 'utf8');
 assert.match(main, /world-map/);
@@ -37,6 +38,7 @@ assert.match(main, /isBattleAnimating/);
 assert.match(main, /renderHpPanel/);
 assert.match(main, /renderDamagePopup/);
 assert.match(main, /__zombieGameBattle/);
+assert.doesNotMatch(main, /url\('\/\$\{atlas\}'\)/, 'sprite atlas URLs must remain relative for GitHub Pages project sites');
 
 const css = await readFile('src/styles.css', 'utf8');
 assert.match(css, /\.world-map/);
