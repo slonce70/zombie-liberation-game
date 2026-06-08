@@ -38,6 +38,7 @@ let battlePhase = 'idle';
 let lastDamagePopup = null;
 let isBattleAnimating = false;
 let battleToken = 0;
+let actionNotice = null;
 
 function escapeHtml(value) {
   return String(value)
@@ -71,6 +72,14 @@ function clearActiveBattle() {
   lastBattleAnimation = null;
   lastDamagePopup = null;
   isBattleAnimating = false;
+}
+
+function setActionNotice(kind, message) {
+  actionNotice = { kind, message };
+}
+
+function clearActionNotice() {
+  actionNotice = null;
 }
 
 function battleMatches(fighter, country) {
@@ -124,6 +133,15 @@ function renderHpPanel(label, combatant) {
 function renderDamagePopup(target) {
   if (!lastDamagePopup || lastDamagePopup.target !== target) return '';
   return `<span class="damage-popup target-${target}" aria-live="polite">-${lastDamagePopup.amount}</span>`;
+}
+
+function renderActionNotice() {
+  if (!actionNotice) return '';
+  return `
+    <section class="action-notice ${actionNotice.kind}" role="status" aria-live="polite">
+      ${escapeHtml(actionNotice.message)}
+    </section>
+  `;
 }
 
 function spriteRowIndex(stateName) {
@@ -264,6 +282,8 @@ function render() {
       <strong>Підказка:</strong> ${escapeHtml(recommendation.message)}
     </section>
 
+    ${renderActionNotice()}
+
     <section class="game-grid">
       <article class="arena panel">
         <div class="country-banner" style="--country-color:${country.color}">
@@ -350,6 +370,9 @@ function renderFighterCard(fighter) {
   const stats = getBattleStats(fighter);
   const cost = getUpgradeCost(fighter.level);
   const sprite = getSpriteForEntity(fighter.id);
+  const upgradeBlockedByBattle = Boolean(activeBattle) || isBattleAnimating;
+  const upgradeDisabled = !fighter.unlocked || fighter.level >= MAX_FIGHTER_LEVEL || upgradeBlockedByBattle;
+  const upgradeTitle = upgradeBlockedByBattle ? 'Заверши поточний бій перед прокачкою' : '';
   return `
     <div class="fighter-card ${selected} ${fighter.unlocked ? '' : 'locked'}" style="--accent:${fighter.color}">
       <button class="fighter-select" data-fighter="${fighter.id}" ${fighter.unlocked ? '' : 'disabled'}>
@@ -363,7 +386,7 @@ function renderFighterCard(fighter) {
         </span>
       </button>
       <p>Рівень ${fighter.level}/${MAX_FIGHTER_LEVEL} · HP ${stats.hp} · Урон ${stats.damage}</p>
-      <button class="upgrade" data-upgrade="${fighter.id}" ${fighter.unlocked && fighter.level < MAX_FIGHTER_LEVEL ? '' : 'disabled'}>
+      <button class="upgrade" data-upgrade="${fighter.id}" title="${escapeHtml(upgradeTitle)}" ${upgradeDisabled ? 'disabled' : ''}>
         ⬆️ Прокачати ${fighter.level < MAX_FIGHTER_LEVEL ? `за ${cost} монет` : 'MAX'}
       </button>
     </div>
@@ -372,6 +395,7 @@ function renderFighterCard(fighter) {
 
 async function handleFight() {
   if (isBattleAnimating) return;
+  clearActionNotice();
 
   const country = currentCountry();
   if (country.freed) return;
@@ -380,7 +404,9 @@ async function handleFight() {
     const created = createBattleSession(state, state.selectedFighterId, state.selectedCountryId);
     if (!created.created) {
       clearActiveBattle();
-      addLog(state, 'Цей бій зараз недоступний. Обери відкритого бійця і країну з активним рівнем.');
+      const message = 'Цей бій зараз недоступний. Обери відкритого бійця і країну з активним рівнем.';
+      setActionNotice('warning', message);
+      addLog(state, message);
       saveGame(storage, state);
       render();
       return;
@@ -475,15 +501,24 @@ async function handleBoss() {
 }
 
 function handleUpgrade(fighterId) {
-  clearActiveBattle();
   const result = upgradeFighter(state, fighterId);
-  if (result.upgraded) {
-    addLog(state, `${result.fighter.name} тепер рівня ${result.fighter.level}!`);
-  } else if (result.reason === 'not_enough_coins') {
-    addLog(state, `Потрібно ${result.cost} монет для прокачки.`);
-  } else {
-    addLog(state, 'Цього бійця зараз не можна прокачати.');
+  if (!result.upgraded) {
+    if (result.reason === 'not_enough_coins') {
+      const message = `Потрібно ${result.cost} монет для прокачки. Зараз у тебе ${state.coins}.`;
+      setActionNotice('warning', message);
+      addLog(state, message);
+    } else {
+      const message = 'Цього бійця зараз не можна прокачати.';
+      setActionNotice('warning', message);
+      addLog(state, message);
+    }
+    return;
   }
+
+  clearActiveBattle();
+  const message = `${result.fighter.name} тепер рівня ${result.fighter.level}!`;
+  setActionNotice('success', message);
+  addLog(state, message);
 }
 
 function devLevel10() {
@@ -543,10 +578,12 @@ app.addEventListener('click', (event) => {
 
   if (target.dataset.country) {
     clearActiveBattle();
+    clearActionNotice();
     selectCountry(state, target.dataset.country);
   }
   if (target.dataset.fighter) {
     clearActiveBattle();
+    clearActionNotice();
     selectFighter(state, target.dataset.fighter);
   }
   if (target.dataset.upgrade) handleUpgrade(target.dataset.upgrade);
