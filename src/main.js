@@ -137,15 +137,21 @@ function spriteDuration(stateName) {
   return '900ms';
 }
 
+function assetUrl(path) {
+  return new URL(path, document.baseURI).href;
+}
+
 function animatedSpriteMarkup(sprite, stateName = 'idle', fallback = sprite.fallbackEmoji, extraClass = '') {
   const row = spriteRowIndex(stateName);
   const frames = sprite.frameContract.rows[stateName]?.frames || sprite.frameContract.rows.idle.frames;
-  const atlas = escapeHtml(sprite.atlas);
+  const atlas = escapeHtml(assetUrl(sprite.atlas));
+  const steps = Math.max(1, frames - 1);
+  const shift = steps * 192;
   return `
     <span class="animated-sprite state-${stateName} ${extraClass}"
       data-sprite-atlas="${atlas}"
       data-sprite-state="${stateName}"
-      style="--sprite-url:url('${atlas}');--sprite-row-y:-${row * 192}px;--sprite-shift-x:-${frames * 192}px;--sprite-frames:${frames};--sprite-duration:${spriteDuration(stateName)};">
+      style="--sprite-url:url('${atlas}');--sprite-row-y:-${row * 192}px;--sprite-shift-x:-${shift}px;--sprite-steps:${steps};--sprite-duration:${spriteDuration(stateName)};">
       <span class="sprite-atlas-track" aria-hidden="true"></span>
       <span class="sprite-fallback" aria-hidden="true">${escapeHtml(fallback)}</span>
     </span>

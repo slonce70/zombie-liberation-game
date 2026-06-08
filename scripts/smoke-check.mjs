@@ -41,6 +41,8 @@ assert.match(main, /renderDamagePopup/);
 assert.match(main, /__zombieGameBattle/);
 assert.match(main, /mobile-quick-actions/);
 assert.match(main, /focusBattleOnMobile/);
+assert.match(main, /new URL\(path, document\.baseURI\)\.href/, 'sprite CSS URLs should resolve from the document, not src/styles.css');
+assert.match(main, /--sprite-steps:\$\{steps\}/, 'sprite animation should avoid stepping into an empty atlas cell');
 assert.doesNotMatch(main, /url\('\/\$\{atlas\}'\)/, 'sprite atlas URLs must remain relative for GitHub Pages project sites');
 
 const css = await readFile('src/styles.css', 'utf8');

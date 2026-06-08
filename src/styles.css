@@ -214,7 +214,7 @@ h1 span { color: #79f09c; display: block; margin-top: .04em; }
 .hero-sprite { background: radial-gradient(circle at top, color-mix(in srgb, var(--accent), white 58%), #ffffff 55%, #e9f6ff); }
 .zombie-sprite { background: radial-gradient(circle at top, #baf7c7, #ffffff 55%, #e9f6ff); animation-delay: .35s; }
 .animated-sprite { position: relative; display: block; width: 192px; height: 192px; overflow: hidden; border-radius: 28px; background: rgba(255,255,255,.32); filter: drop-shadow(0 10px 0 rgba(32,47,87,.08)); }
-.sprite-atlas-track { position: absolute; left: 0; top: 0; width: 1152px; height: 768px; background-image: var(--sprite-url); background-repeat: no-repeat; background-size: 1152px 768px; transform: translate3d(0, var(--sprite-row-y), 0); animation: spriteAtlas var(--sprite-duration, 900ms) steps(var(--sprite-frames)) infinite; }
+.sprite-atlas-track { position: absolute; left: 0; top: 0; width: 1152px; height: 768px; background-image: var(--sprite-url); background-repeat: no-repeat; background-size: 1152px 768px; transform: translate3d(0, var(--sprite-row-y), 0); animation: spriteAtlas var(--sprite-duration, 900ms) steps(var(--sprite-steps)) infinite; }
 .animated-sprite.state-attack .sprite-atlas-track, .animated-sprite.state-hurt .sprite-atlas-track { animation-iteration-count: 1; }
 .sprite-fallback { position: absolute; inset: 0; display: grid; place-items: center; font-size: 4.6rem; transition: opacity .18s ease; }
 .sprite-loaded .sprite-fallback { opacity: 0; }
