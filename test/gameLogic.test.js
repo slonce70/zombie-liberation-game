@@ -4,6 +4,9 @@ import {
   createInitialState,
   getLevelReward,
   getEnemyForLevel,
+  createRewardChoice,
+  applyRewardChoice,
+  getEffectiveUpgradeCost,
   openMegaBox,
   upgradeFighter,
   completeLevel,
@@ -67,6 +70,71 @@ test('fighter passives are available by fighter id', () => {
     description: 'Кожен 3-й удар сильніший.',
   });
   assert.equal(getFighterPassive('missing'), null);
+});
+
+test('reward choice appears only on tactical reward levels and not on mega box level', () => {
+  const state = createInitialState();
+
+  assert.equal(createRewardChoice(state, 'ukraine', 1).created, false);
+  assert.equal(createRewardChoice(state, 'ukraine', 3).created, true);
+  assert.equal(createRewardChoice(state, 'ukraine', 7).created, true);
+  assert.equal(createRewardChoice(state, 'ukraine', 10).created, false);
+  assert.equal(createRewardChoice(state, 'ukraine', 13).created, true);
+});
+
+test('applying bonus coins reward works exactly once', () => {
+  const state = createInitialState();
+  createRewardChoice(state, 'ukraine', 3);
+
+  const result = applyRewardChoice(state, 'bonus_coins');
+  const duplicate = applyRewardChoice(state, 'bonus_coins');
+
+  assert.equal(result.applied, true);
+  assert.equal(result.message, 'Отримано +35 монет.');
+  assert.equal(state.coins, 35);
+  assert.equal(state.pendingRewardChoice, null);
+  assert.equal(duplicate.applied, false);
+  assert.equal(duplicate.reason, 'no_pending_reward');
+});
+
+test('upgrade discount lowers the next successful upgrade cost and then clears', () => {
+  const state = createInitialState();
+  state.coins = 999;
+  state.pendingRewardChoice = {
+    countryId: 'ukraine',
+    completedLevel: 3,
+    options: [
+      { id: 'upgrade_discount', label: 'Знижка прокачки', description: 'Наступна прокачка дешевша' },
+      { id: 'bonus_coins', label: 'Більше монет', description: '+35 монет' },
+    ],
+  };
+
+  const reward = applyRewardChoice(state, 'upgrade_discount');
+  const cost = getEffectiveUpgradeCost(state, state.fighters[0].level);
+  const upgrade = upgradeFighter(state, 'artem');
+
+  assert.equal(reward.applied, true);
+  assert.equal(cost, 78);
+  assert.equal(upgrade.cost, 78);
+  assert.equal(state.upgradeDiscountPercent, 0);
+});
+
+test('pity token reward never opens a fighter directly', () => {
+  const state = createInitialState();
+  state.pendingRewardChoice = {
+    countryId: 'ukraine',
+    completedLevel: 13,
+    options: [
+      { id: 'pity_token', label: 'Жетон удачі', description: '+1 жетон удачі' },
+      { id: 'bonus_coins', label: 'Більше монет', description: '+35 монет' },
+    ],
+  };
+
+  const result = applyRewardChoice(state, 'pity_token');
+
+  assert.equal(result.applied, true);
+  assert.equal(state.pityTokens, 1);
+  assert.equal(state.fighters.filter((fighter) => fighter.unlocked).length, 1);
 });
 
 test('mega box unlocks a locked fighter when roll is inside 56 percent chance', () => {

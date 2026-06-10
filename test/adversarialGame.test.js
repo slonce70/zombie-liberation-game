@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   createInitialState,
+  applyRewardChoice,
   openMegaBox,
   upgradeFighter,
   fightEnemy,
@@ -81,4 +82,23 @@ test('repeated unlucky mega boxes still unlock fighters through pity tokens so b
   state.countries.forEach((country) => { country.freed = true; });
 
   assert.equal(fightBoss(state, 'artem').victory, true);
+});
+
+test('reward choice cannot be applied with a forged option id', () => {
+  const state = createInitialState();
+  state.pendingRewardChoice = {
+    countryId: 'ukraine',
+    completedLevel: 3,
+    options: [
+      { id: 'bonus_coins', label: 'Більше монет', description: '+35 монет' },
+      { id: 'upgrade_discount', label: 'Знижка прокачки', description: 'Наступна прокачка дешевша' },
+    ],
+  };
+
+  const result = applyRewardChoice(state, 'unlock_all_fighters');
+
+  assert.equal(result.applied, false);
+  assert.equal(result.reason, 'reward_unavailable');
+  assert.equal(state.coins, 0);
+  assert.equal(state.pendingRewardChoice.options.length, 2);
 });

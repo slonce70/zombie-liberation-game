@@ -9,6 +9,8 @@ import {
   MEGA_BOX_LEVEL,
   MEGA_BOX_UNLOCK_CHANCE,
   PITY_TOKENS_FOR_UNLOCK,
+  rewardDefinitions,
+  SPECIAL_REWARD_LEVELS,
 } from './gameData.js';
 
 export function createInitialState() {
@@ -136,16 +138,104 @@ export function openMegaBox(state, random = Math.random) {
   };
 }
 
+function cloneRewardDefinition(rewardId) {
+  const reward = rewardDefinitions[rewardId];
+  return reward ? { ...reward } : null;
+}
+
+function rewardIdsForLevel(state, completedLevel) {
+  const byLevel = {
+    3: ['bonus_coins', 'upgrade_discount'],
+    7: ['next_damage', 'bonus_coins'],
+    13: ['pity_token', 'upgrade_discount'],
+    18: ['next_hp', 'bonus_coins'],
+    23: ['pity_token', 'next_damage'],
+  };
+  const ids = byLevel[completedLevel] || [];
+  return ids.map((id) => {
+    if (id === 'pity_token' && state.pityTokens >= PITY_TOKENS_FOR_UNLOCK - 1) return 'bonus_coins';
+    return id;
+  });
+}
+
+export function createRewardChoice(state, countryId, completedLevel) {
+  if (!SPECIAL_REWARD_LEVELS.includes(completedLevel) || completedLevel === MEGA_BOX_LEVEL) {
+    return { created: false, reason: 'not_reward_level' };
+  }
+  const country = findCountry(state, countryId);
+  if (!country) return { created: false, reason: 'country_unavailable' };
+  const options = rewardIdsForLevel(state, completedLevel)
+    .map(cloneRewardDefinition)
+    .filter(Boolean);
+  const uniqueOptions = options.filter((option, index, list) => (
+    list.findIndex((item) => item.id === option.id) === index
+  ));
+  while (uniqueOptions.length < 2) {
+    const fallback = cloneRewardDefinition(uniqueOptions.some((option) => option.id === 'bonus_coins')
+      ? 'upgrade_discount'
+      : 'bonus_coins');
+    uniqueOptions.push(fallback);
+  }
+  state.pendingRewardChoice = {
+    countryId,
+    completedLevel,
+    options: uniqueOptions.slice(0, 2),
+  };
+  return { created: true, rewardChoice: state.pendingRewardChoice };
+}
+
+export function getEffectiveUpgradeCost(state, fighterLevel) {
+  const baseCost = getUpgradeCost(fighterLevel);
+  if (!Number.isFinite(baseCost)) return baseCost;
+  if (state.upgradeDiscountPercent !== 25) return baseCost;
+  return Math.max(1, Math.floor(baseCost * 0.75));
+}
+
+export function applyRewardChoice(state, rewardId) {
+  const pending = state.pendingRewardChoice;
+  if (!pending) return { applied: false, reason: 'no_pending_reward' };
+  const option = pending.options.find((item) => item.id === rewardId);
+  if (!option) return { applied: false, reason: 'reward_unavailable' };
+
+  if (rewardId === 'bonus_coins') {
+    state.coins += 35;
+    state.pendingRewardChoice = null;
+    return { applied: true, rewardId, message: 'Отримано +35 монет.' };
+  }
+  if (rewardId === 'upgrade_discount') {
+    state.upgradeDiscountPercent = 25;
+    state.pendingRewardChoice = null;
+    return { applied: true, rewardId, message: 'Наступна прокачка дешевша на 25%.' };
+  }
+  if (rewardId === 'pity_token') {
+    state.pityTokens = Math.min(PITY_TOKENS_FOR_UNLOCK - 1, state.pityTokens + 1);
+    state.pendingRewardChoice = null;
+    return { applied: true, rewardId, message: `Жетон удачі ${state.pityTokens}/${PITY_TOKENS_FOR_UNLOCK}.` };
+  }
+  if (rewardId === 'next_damage') {
+    state.nextBattleBuff = { type: 'damage', percent: 10 };
+    state.pendingRewardChoice = null;
+    return { applied: true, rewardId, message: 'Наступний бій почнеться з +10% урону.' };
+  }
+  if (rewardId === 'next_hp') {
+    state.nextBattleBuff = { type: 'hp', percent: 10 };
+    state.pendingRewardChoice = null;
+    return { applied: true, rewardId, message: 'Наступний бій почнеться з +10% HP.' };
+  }
+  return { applied: false, reason: 'reward_unavailable' };
+}
+
 export function upgradeFighter(state, fighterId) {
   const fighter = findFighter(state, fighterId);
   if (!fighter || !fighter.unlocked) return { upgraded: false, reason: 'fighter_locked' };
   if (fighter.level >= MAX_FIGHTER_LEVEL) return { upgraded: false, reason: 'max_level' };
 
-  const cost = getUpgradeCost(fighter.level);
+  const cost = getEffectiveUpgradeCost(state, fighter.level);
   if (state.coins < cost) return { upgraded: false, reason: 'not_enough_coins', cost };
 
   state.coins -= cost;
   fighter.level += 1;
+  state.upgradeDiscountPercent = 0;
   return { upgraded: true, fighter, cost, stats: getBattleStats(fighter) };
 }
 
@@ -166,6 +256,8 @@ export function completeLevel(state, countryId, random = Math.random) {
     }
   }
 
+  const rewardChoice = createRewardChoice(state, country.id, completedLevel);
+
   if (completedLevel >= LEVELS_PER_COUNTRY) {
     country.currentLevel = LEVELS_PER_COUNTRY;
     country.freed = true;
@@ -173,7 +265,14 @@ export function completeLevel(state, countryId, random = Math.random) {
     country.currentLevel += 1;
   }
 
-  return { completed: true, completedLevel, reward, boxResult, country };
+  return {
+    completed: true,
+    completedLevel,
+    reward,
+    boxResult,
+    rewardChoice: rewardChoice.created ? rewardChoice.rewardChoice : null,
+    country,
+  };
 }
 
 export function fightEnemy(state, fighterId, countryId, random = Math.random) {

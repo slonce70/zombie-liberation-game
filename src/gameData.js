@@ -136,6 +136,36 @@ export const enemyArchetypes = {
   },
 };
 
+export const SPECIAL_REWARD_LEVELS = [3, 7, 13, 18, 23];
+
+export const rewardDefinitions = {
+  bonus_coins: {
+    id: 'bonus_coins',
+    label: 'Більше монет',
+    description: '+35 монет одразу',
+  },
+  upgrade_discount: {
+    id: 'upgrade_discount',
+    label: 'Знижка прокачки',
+    description: 'Наступна прокачка дешевша на 25%',
+  },
+  pity_token: {
+    id: 'pity_token',
+    label: 'Жетон удачі',
+    description: '+1 жетон удачі до Мегабокса',
+  },
+  next_damage: {
+    id: 'next_damage',
+    label: 'Бойовий настрій',
+    description: 'Наступний бій: +10% урону',
+  },
+  next_hp: {
+    id: 'next_hp',
+    label: 'Міцний дух',
+    description: 'Наступний бій: +10% HP',
+  },
+};
+
 export const boss = {
   id: 'bul-bul',
   name: 'Зомбі-Бос Буль-Буль',
