@@ -69,6 +69,7 @@ function wait(ms) {
 function clearActiveBattle() {
   battleToken += 1;
   activeBattle = null;
+  state.activeBattleBuff = null;
   battlePhase = 'idle';
   lastBattleAnimation = null;
   lastBossAnimation = false;
@@ -434,6 +435,7 @@ async function handleFight() {
       return;
     }
     activeBattle = created.session;
+    if (activeBattle.appliedBuff) saveGame(storage, state);
   }
 
   battleToken += 1;
@@ -492,6 +494,7 @@ async function handleFight() {
     await wait(OUTCOME_PAUSE_MS);
     clearActiveBattle();
     lastBattleAnimation = null;
+    saveGame(storage, state);
     render();
     return;
   }

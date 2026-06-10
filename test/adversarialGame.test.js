@@ -4,6 +4,7 @@ import {
   createInitialState,
   createBattleSession,
   applyHeroAttack,
+  applyEnemyCounterAttack,
   applyRewardChoice,
   openMegaBox,
   upgradeFighter,
@@ -117,6 +118,75 @@ test('forged passive victory that skips enemy counters is rejected', () => {
     ...session,
     enemy: { ...session.enemy, currentHp: 0 },
     enemyCounterCount: 0,
+  };
+
+  const result = resolveBattleVictory(state, session, () => 0.99);
+
+  assert.equal(result.completed, false);
+  assert.equal(result.reason, 'stale_battle');
+  assert.equal(state.coins, 0);
+  assert.equal(state.countries[0].currentLevel, 1);
+});
+
+test('forged damage buff without authoritative state record is rejected', () => {
+  const state = createInitialState();
+  let session = createBattleSession(state, 'artem', 'ukraine').session;
+  session = {
+    ...session,
+    appliedBuff: { type: 'damage', percent: 10 },
+    hero: {
+      ...session.hero,
+      damage: 37,
+      baseDamage: 37,
+    },
+  };
+
+  session = applyHeroAttack(session).session;
+  session = applyEnemyCounterAttack(session).session;
+  session = applyHeroAttack(session).session;
+
+  const result = resolveBattleVictory(state, session, () => 0.99);
+
+  assert.equal(result.completed, false);
+  assert.equal(result.reason, 'stale_battle');
+  assert.equal(state.coins, 0);
+  assert.equal(state.countries[0].currentLevel, 1);
+});
+
+test('malformed applied buff shape is rejected', () => {
+  const state = createInitialState();
+  state.nextBattleBuff = { type: 'damage', percent: 10 };
+  let session = createBattleSession(state, 'artem', 'ukraine').session;
+  session = {
+    ...session,
+    appliedBuff: { type: 'damage', percent: 999 },
+  };
+
+  session = applyHeroAttack(session).session;
+  session = applyEnemyCounterAttack(session).session;
+  session = applyHeroAttack(session).session;
+
+  const result = resolveBattleVictory(state, session, () => 0.99);
+
+  assert.equal(result.completed, false);
+  assert.equal(result.reason, 'stale_battle');
+  assert.equal(state.coins, 0);
+  assert.equal(state.countries[0].currentLevel, 1);
+});
+
+test('huge forged battle counts are rejected without campaign progress', () => {
+  const state = createInitialState();
+  let session = createBattleSession(state, 'artem', 'ukraine').session;
+
+  session = applyHeroAttack(session).session;
+  session = applyEnemyCounterAttack(session).session;
+  session = applyHeroAttack(session).session;
+  session = applyEnemyCounterAttack(session).session;
+  session = applyHeroAttack(session).session;
+  session = {
+    ...session,
+    heroAttackCount: 100000,
+    enemyCounterCount: 99999,
   };
 
   const result = resolveBattleVictory(state, session, () => 0.99);

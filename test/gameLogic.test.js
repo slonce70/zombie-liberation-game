@@ -519,6 +519,12 @@ test('next battle damage buff is consumed only after a successful session is cre
 
   assert.equal(valid.session.hero.damage, 37);
   assert.equal(state.nextBattleBuff, null);
+  assert.deepEqual(state.activeBattleBuff, {
+    fighterId: 'artem',
+    countryId: 'ukraine',
+    countryLevel: 1,
+    buff: { type: 'damage', percent: 10 },
+  });
 });
 
 test('next battle hp buff is consumed when a session is created', () => {
@@ -530,4 +536,21 @@ test('next battle hp buff is consumed when a session is created', () => {
   assert.equal(valid.session.hero.maxHp, 149);
   assert.equal(valid.session.hero.currentHp, 149);
   assert.equal(state.nextBattleBuff, null);
+});
+
+test('legitimately consumed battle buff can resolve and clears active entitlement', () => {
+  const state = createInitialState();
+  state.nextBattleBuff = { type: 'damage', percent: 10 };
+  let session = createBattleSession(state, 'artem', 'ukraine').session;
+
+  session = applyHeroAttack(session).session;
+  session = applyEnemyCounterAttack(session).session;
+  session = applyHeroAttack(session).session;
+
+  const result = resolveBattleVictory(state, session, () => 0.99);
+
+  assert.equal(result.completed, true);
+  assert.equal(state.coins, 50);
+  assert.equal(state.countries[0].currentLevel, 2);
+  assert.equal(state.activeBattleBuff, null);
 });

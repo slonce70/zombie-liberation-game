@@ -20,6 +20,7 @@ export function createInitialState() {
     pendingRewardChoice: null,
     upgradeDiscountPercent: 0,
     nextBattleBuff: null,
+    activeBattleBuff: null,
     selectedCountryId: countryData[0].id,
     selectedFighterId: fighterData[0].id,
     bossDefeated: false,
@@ -310,6 +311,42 @@ function copyBattleSession(session) {
   };
 }
 
+function isValidBattleBuff(buff) {
+  return buff === null
+    || (
+      buff
+      && typeof buff === 'object'
+      && !Array.isArray(buff)
+      && (buff.type === 'damage' || buff.type === 'hp')
+      && buff.percent === 10
+      && Object.keys(buff).length === 2
+    );
+}
+
+function sameBattleBuff(left, right) {
+  if (left === null || right === null) return left === right;
+  return left.type === right.type && left.percent === right.percent;
+}
+
+function battleBuffEntitlementMatches(state, session) {
+  if (session.appliedBuff === null) return true;
+  const active = state.activeBattleBuff;
+  return Boolean(
+    active
+    && active.fighterId === session.fighterId
+    && active.countryId === session.countryId
+    && active.countryLevel === session.countryLevel
+    && isValidBattleBuff(active.buff)
+    && sameBattleBuff(active.buff, session.appliedBuff)
+  );
+}
+
+function applyBattleBuffToStats(stats, buff) {
+  if (buff?.type === 'damage') return { ...stats, damage: Math.round(stats.damage * 1.1) };
+  if (buff?.type === 'hp') return { ...stats, hp: Math.round(stats.hp * 1.1) };
+  return stats;
+}
+
 export function createBattleSession(state, fighterId, countryId) {
   const fighter = findFighter(state, fighterId);
   const country = findCountry(state, countryId);
@@ -319,13 +356,18 @@ export function createBattleSession(state, fighterId, countryId) {
 
   let stats = getBattleStats(fighter);
   const appliedBuff = state.nextBattleBuff;
-  if (appliedBuff?.type === 'damage') {
-    stats = { ...stats, damage: Math.round(stats.damage * 1.1) };
+  stats = applyBattleBuffToStats(stats, appliedBuff);
+  if (appliedBuff) {
+    state.nextBattleBuff = null;
+    state.activeBattleBuff = {
+      fighterId: fighter.id,
+      countryId: country.id,
+      countryLevel: country.currentLevel,
+      buff: { ...appliedBuff },
+    };
+  } else {
+    state.activeBattleBuff = null;
   }
-  if (appliedBuff?.type === 'hp') {
-    stats = { ...stats, hp: Math.round(stats.hp * 1.1) };
-  }
-  if (appliedBuff) state.nextBattleBuff = null;
 
   const enemy = getEnemyForLevel(country.currentLevel);
   return {
@@ -486,6 +528,12 @@ function battleSessionMatchesReplay(session, replay) {
     && session.enemy.marked === replay.enemy.marked;
 }
 
+function getMaxReplayHeroAttacks(stats, enemy) {
+  const firstHitMultiplier = Math.min(1, enemy.firstHitDamageMultiplier ?? 1);
+  const minimumDamage = Math.max(1, roundDamage(stats.damage * firstHitMultiplier));
+  return Math.ceil(enemy.hp / minimumDamage) + 2;
+}
+
 export function resolveBattleVictory(state, session, random = Math.random) {
   const country = findCountry(state, session?.countryId);
   const fighter = findFighter(state, session?.fighterId);
@@ -504,11 +552,14 @@ export function resolveBattleVictory(state, session, random = Math.random) {
     return { completed: false, reason: 'stale_battle' };
   }
 
+  if (!isValidBattleBuff(session.appliedBuff) || !battleBuffEntitlementMatches(state, session)) {
+    return { completed: false, reason: 'stale_battle' };
+  }
+
   let stats = getBattleStats(fighter);
-  if (session.appliedBuff?.type === 'damage') stats = { ...stats, damage: Math.round(stats.damage * 1.1) };
-  if (session.appliedBuff?.type === 'hp') stats = { ...stats, hp: Math.round(stats.hp * 1.1) };
+  stats = applyBattleBuffToStats(stats, session.appliedBuff);
   const enemy = getEnemyForLevel(country.currentLevel);
-  const replay = replayBattleToCounts(session);
+  const maxHeroAttackCount = getMaxReplayHeroAttacks(stats, enemy);
   if (
     session.hero.maxHp !== stats.hp
     || session.hero.damage !== stats.damage
@@ -517,16 +568,30 @@ export function resolveBattleVictory(state, session, random = Math.random) {
     || session.enemy.maxHp !== enemy.hp
     || session.enemy.damage !== enemy.damage
     || session.enemy.archetypeId !== enemy.archetypeId
+    || session.enemy.archetypeName !== enemy.archetypeName
+    || session.enemy.traitText !== enemy.traitText
     || session.enemy.firstHitDamageMultiplier !== enemy.firstHitDamageMultiplier
     || !Number.isInteger(session.heroAttackCount)
     || !Number.isInteger(session.enemyCounterCount)
-    || !battleSessionMatchesReplay(session, replay)
+    || session.heroAttackCount < 0
+    || session.enemyCounterCount < 0
+    || session.heroAttackCount > maxHeroAttackCount
+    || session.enemyCounterCount > Math.max(0, maxHeroAttackCount - 1)
+  ) {
+    return { completed: false, reason: 'stale_battle' };
+  }
+
+  const replay = replayBattleToCounts(session);
+  if (
+    !battleSessionMatchesReplay(session, replay)
   ) {
     return { completed: false, reason: 'stale_battle' };
   }
 
   const progress = completeLevel(state, session.countryId, random);
   if (!progress.completed) return { completed: false, reason: progress.reason };
+
+  state.activeBattleBuff = null;
 
   return {
     completed: true,
