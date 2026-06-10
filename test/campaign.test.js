@@ -42,3 +42,52 @@ test('getCountryProgress returns percent and next reward label', () => {
   assert.equal(progress.percent, 36);
   assert.equal(progress.nextRewardLabel, '🎁 Мегабокс зараз');
 });
+
+test('getNextRecommendation asks player to choose pending reward first', () => {
+  const state = createInitialState();
+  state.pendingRewardChoice = {
+    countryId: 'ukraine',
+    completedLevel: 3,
+    options: [
+      { id: 'bonus_coins', label: 'Більше монет', description: '+35 монет' },
+      { id: 'upgrade_discount', label: 'Знижка прокачки', description: 'Наступна прокачка дешевша' },
+    ],
+  };
+
+  const recommendation = getNextRecommendation(state);
+
+  assert.equal(recommendation.kind, 'reward');
+  assert.match(recommendation.message, /нагор/iu);
+});
+
+test('getNextRecommendation mentions active upgrade discount', () => {
+  const state = createInitialState();
+  state.upgradeDiscountPercent = 25;
+  state.coins = 100;
+
+  const recommendation = getNextRecommendation(state);
+
+  assert.equal(recommendation.kind, 'upgrade');
+  assert.match(recommendation.message, /зниж/iu);
+});
+
+test('getNextRecommendation mentions next battle buff', () => {
+  const state = createInitialState();
+  state.nextBattleBuff = { type: 'damage', percent: 10 };
+
+  const recommendation = getNextRecommendation(state);
+
+  assert.equal(recommendation.kind, 'fight');
+  assert.match(recommendation.message, /10% урон/iu);
+});
+
+test('getNextRecommendation can suggest a stronger unlocked fighter', () => {
+  const state = createInitialState();
+  state.fighters[2].unlocked = true;
+  state.selectedFighterId = 'artem';
+  state.countries[0].currentLevel = 8;
+
+  const recommendation = getNextRecommendation(state);
+
+  assert.match(recommendation.message, /Макс Ракета/iu);
+});
