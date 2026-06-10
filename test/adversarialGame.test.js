@@ -2,6 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   createInitialState,
+  createBattleSession,
+  applyHeroAttack,
   applyRewardChoice,
   openMegaBox,
   upgradeFighter,
@@ -10,6 +12,7 @@ import {
   selectFighter,
   selectCountry,
   isBossUnlocked,
+  resolveBattleVictory,
 } from '../src/gameLogic.js';
 
 test('invalid country and locked fighter battles are rejected without changing coins', () => {
@@ -101,4 +104,25 @@ test('reward choice cannot be applied with a forged option id', () => {
   assert.equal(result.reason, 'reward_unavailable');
   assert.equal(state.coins, 0);
   assert.equal(state.pendingRewardChoice.options.length, 2);
+});
+
+test('forged passive victory that skips enemy counters is rejected', () => {
+  const state = createInitialState();
+  let session = createBattleSession(state, 'artem', 'ukraine').session;
+
+  session = applyHeroAttack(session).session;
+  session = applyHeroAttack(session).session;
+  session = applyHeroAttack(session).session;
+  session = {
+    ...session,
+    enemy: { ...session.enemy, currentHp: 0 },
+    enemyCounterCount: 0,
+  };
+
+  const result = resolveBattleVictory(state, session, () => 0.99);
+
+  assert.equal(result.completed, false);
+  assert.equal(result.reason, 'stale_battle');
+  assert.equal(state.coins, 0);
+  assert.equal(state.countries[0].currentLevel, 1);
 });

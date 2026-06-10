@@ -317,7 +317,16 @@ export function createBattleSession(state, fighterId, countryId) {
     return { created: false, reason: 'invalid_battle' };
   }
 
-  const stats = getBattleStats(fighter);
+  let stats = getBattleStats(fighter);
+  const appliedBuff = state.nextBattleBuff;
+  if (appliedBuff?.type === 'damage') {
+    stats = { ...stats, damage: Math.round(stats.damage * 1.1) };
+  }
+  if (appliedBuff?.type === 'hp') {
+    stats = { ...stats, hp: Math.round(stats.hp * 1.1) };
+  }
+  if (appliedBuff) state.nextBattleBuff = null;
+
   const enemy = getEnemyForLevel(country.currentLevel);
   return {
     created: true,
@@ -326,12 +335,17 @@ export function createBattleSession(state, fighterId, countryId) {
       fighterName: fighter.name,
       countryId: country.id,
       countryLevel: country.currentLevel,
+      appliedBuff,
       heroAttackCount: 0,
       enemyCounterCount: 0,
+      passiveEvents: [],
+      heroDamageTotal: 0,
+      enemyDamageTotal: 0,
       hero: {
         currentHp: stats.hp,
         maxHp: stats.hp,
         damage: stats.damage,
+        baseDamage: stats.damage,
       },
       enemy: {
         name: enemy.name,
@@ -339,9 +353,52 @@ export function createBattleSession(state, fighterId, countryId) {
         currentHp: enemy.hp,
         maxHp: enemy.hp,
         damage: enemy.damage,
+        archetypeId: enemy.archetypeId,
+        archetypeName: enemy.archetypeName,
+        traitText: enemy.traitText,
+        firstHitDamageMultiplier: enemy.firstHitDamageMultiplier,
+        armorUsed: false,
+        marked: false,
       },
     },
   };
+}
+
+function roundDamage(value) {
+  return Math.max(0, Math.round(value));
+}
+
+function passiveEvent(passiveId, label) {
+  return { passiveId, label };
+}
+
+function calculateHeroDamage(session) {
+  let damage = session.hero.damage;
+  const events = [];
+  const nextAttackNumber = (session.heroAttackCount ?? 0) + 1;
+
+  if (session.fighterId === 'artem' && nextAttackNumber % 3 === 0) {
+    damage *= 1.5;
+    events.push(passiveEvent('spark_tempo', 'Іскровий темп'));
+  }
+  if (session.fighterId === 'maks' && nextAttackNumber === 1) {
+    damage *= 1.35;
+    events.push(passiveEvent('rocket_start', 'Ракетний старт'));
+  }
+  if (session.fighterId === 'lina' && session.enemy.marked) {
+    damage *= 1.15;
+    events.push(passiveEvent('weak_spot_bonus', 'Слабке місце'));
+  }
+  if (session.fighterId === 'danylo' && session.enemy.currentHp <= session.enemy.maxHp * 0.35) {
+    damage *= 1.4;
+    events.push(passiveEvent('finisher', 'Фінішер'));
+  }
+  if (session.enemy.archetypeId === 'armored' && !session.enemy.armorUsed) {
+    damage *= session.enemy.firstHitDamageMultiplier;
+    events.push(passiveEvent('armored_enemy', 'Броня зомбі'));
+  }
+
+  return { damage: roundDamage(damage), events };
 }
 
 export function applyHeroAttack(session) {
@@ -350,10 +407,16 @@ export function applyHeroAttack(session) {
     return { session: next, damage: 0, target: 'enemy', skipped: true };
   }
 
-  const damage = Math.max(0, next.hero.damage);
+  const calculated = calculateHeroDamage(next);
+  const damage = calculated.damage;
   next.enemy.currentHp = clampHp(next.enemy.currentHp - damage, next.enemy.maxHp);
   next.heroAttackCount = (next.heroAttackCount ?? 0) + 1;
-  return { session: next, damage, target: 'enemy' };
+  next.heroDamageTotal = (next.heroDamageTotal ?? 0) + damage;
+  next.lastPassiveEvents = calculated.events;
+  next.passiveEvents = [...(next.passiveEvents || []), ...calculated.events];
+  if (next.fighterId === 'lina') next.enemy.marked = true;
+  if (next.enemy.archetypeId === 'armored' && !next.enemy.armorUsed) next.enemy.armorUsed = true;
+  return { session: next, damage, target: 'enemy', passiveEvents: calculated.events };
 }
 
 export function applyEnemyCounterAttack(session) {
@@ -362,10 +425,19 @@ export function applyEnemyCounterAttack(session) {
     return { session: next, damage: 0, target: 'hero', skipped: true };
   }
 
-  const damage = Math.max(0, next.enemy.damage);
+  let damage = next.enemy.damage;
+  const events = [];
+  if (next.fighterId === 'sofia' && (next.enemyCounterCount ?? 0) === 0) {
+    damage *= 0.5;
+    events.push(passiveEvent('team_shield', 'Щит команди'));
+  }
+  damage = roundDamage(damage);
   next.hero.currentHp = clampHp(next.hero.currentHp - damage, next.hero.maxHp);
   next.enemyCounterCount = (next.enemyCounterCount ?? 0) + 1;
-  return { session: next, damage, target: 'hero' };
+  next.enemyDamageTotal = (next.enemyDamageTotal ?? 0) + damage;
+  next.lastPassiveEvents = events;
+  next.passiveEvents = [...(next.passiveEvents || []), ...events];
+  return { session: next, damage, target: 'hero', passiveEvents: events };
 }
 
 export function getBattleOutcome(session) {
@@ -373,6 +445,45 @@ export function getBattleOutcome(session) {
   if (session.hero.currentHp <= 0) return 'defeat';
   if (session.enemy.currentHp <= 0) return 'victory';
   return 'ongoing';
+}
+
+function replayBattleToCounts(session) {
+  let replay = {
+    ...session,
+    heroAttackCount: 0,
+    enemyCounterCount: 0,
+    heroDamageTotal: 0,
+    enemyDamageTotal: 0,
+    passiveEvents: [],
+    lastPassiveEvents: [],
+    hero: { ...session.hero, currentHp: session.hero.maxHp },
+    enemy: {
+      ...session.enemy,
+      currentHp: session.enemy.maxHp,
+      armorUsed: false,
+      marked: false,
+    },
+  };
+
+  for (let i = 0; i < session.heroAttackCount; i += 1) {
+    replay = applyHeroAttack(replay).session;
+    if (getBattleOutcome(replay) !== 'ongoing') break;
+    replay = applyEnemyCounterAttack(replay).session;
+    if (getBattleOutcome(replay) !== 'ongoing') break;
+  }
+
+  return replay;
+}
+
+function battleSessionMatchesReplay(session, replay) {
+  return session.hero.currentHp === replay.hero.currentHp
+    && session.enemy.currentHp === replay.enemy.currentHp
+    && session.heroAttackCount === replay.heroAttackCount
+    && session.enemyCounterCount === replay.enemyCounterCount
+    && session.heroDamageTotal === replay.heroDamageTotal
+    && session.enemyDamageTotal === replay.enemyDamageTotal
+    && session.enemy.armorUsed === replay.enemy.armorUsed
+    && session.enemy.marked === replay.enemy.marked;
 }
 
 export function resolveBattleVictory(state, session, random = Math.random) {
@@ -393,22 +504,11 @@ export function resolveBattleVictory(state, session, random = Math.random) {
     return { completed: false, reason: 'stale_battle' };
   }
 
-  const stats = getBattleStats(fighter);
+  let stats = getBattleStats(fighter);
+  if (session.appliedBuff?.type === 'damage') stats = { ...stats, damage: Math.round(stats.damage * 1.1) };
+  if (session.appliedBuff?.type === 'hp') stats = { ...stats, hp: Math.round(stats.hp * 1.1) };
   const enemy = getEnemyForLevel(country.currentLevel);
-  const heroAttackCount = session.heroAttackCount;
-  const enemyCounterCount = session.enemyCounterCount;
-  const expectedHeroAttackCount = session.hero.damage > 0
-    ? Math.ceil(session.enemy.maxHp / session.hero.damage)
-    : null;
-  const expectedEnemyCounterCount = expectedHeroAttackCount === null
-    ? null
-    : expectedHeroAttackCount - 1;
-  const expectedEnemyHp = Number.isInteger(heroAttackCount)
-    ? clampHp(session.enemy.maxHp - session.hero.damage * heroAttackCount, session.enemy.maxHp)
-    : null;
-  const expectedHeroHp = Number.isInteger(enemyCounterCount)
-    ? clampHp(session.hero.maxHp - session.enemy.damage * enemyCounterCount, session.hero.maxHp)
-    : null;
+  const replay = replayBattleToCounts(session);
   if (
     session.hero.maxHp !== stats.hp
     || session.hero.damage !== stats.damage
@@ -416,12 +516,11 @@ export function resolveBattleVictory(state, session, random = Math.random) {
     || session.enemy.emoji !== enemy.emoji
     || session.enemy.maxHp !== enemy.hp
     || session.enemy.damage !== enemy.damage
-    || !Number.isInteger(heroAttackCount)
-    || heroAttackCount !== expectedHeroAttackCount
-    || session.enemy.currentHp !== expectedEnemyHp
-    || !Number.isInteger(enemyCounterCount)
-    || enemyCounterCount !== expectedEnemyCounterCount
-    || session.hero.currentHp !== expectedHeroHp
+    || session.enemy.archetypeId !== enemy.archetypeId
+    || session.enemy.firstHitDamageMultiplier !== enemy.firstHitDamageMultiplier
+    || !Number.isInteger(session.heroAttackCount)
+    || !Number.isInteger(session.enemyCounterCount)
+    || !battleSessionMatchesReplay(session, replay)
   ) {
     return { completed: false, reason: 'stale_battle' };
   }

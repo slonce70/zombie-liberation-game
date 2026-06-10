@@ -427,3 +427,107 @@ test('step combat rejects invalid, locked, freed, and stale battles without muta
   assert.equal(freed.created, false);
   assert.equal(freed.reason, 'invalid_battle');
 });
+
+test('Artem passive boosts every third real attack', () => {
+  const state = createInitialState();
+  let session = createBattleSession(state, 'artem', 'ukraine').session;
+
+  const first = applyHeroAttack(session);
+  session = first.session;
+  const second = applyHeroAttack(session);
+  session = second.session;
+  const third = applyHeroAttack(session);
+
+  assert.equal(first.damage, 34);
+  assert.equal(second.damage, 34);
+  assert.equal(third.damage, 51);
+});
+
+test('Sofia passive reduces only the first incoming hit', () => {
+  const state = createInitialState();
+  state.fighters[1].unlocked = true;
+  let session = createBattleSession(state, 'sofia', 'ukraine').session;
+  session.enemy.currentHp = session.enemy.maxHp;
+
+  const first = applyEnemyCounterAttack(session);
+  const second = applyEnemyCounterAttack(first.session);
+
+  assert.equal(first.damage, 6);
+  assert.equal(second.damage, 11);
+});
+
+test('Maks passive boosts only the first attack', () => {
+  const state = createInitialState();
+  state.fighters[2].unlocked = true;
+  let session = createBattleSession(state, 'maks', 'ukraine').session;
+
+  const first = applyHeroAttack(session);
+  const second = applyHeroAttack(first.session);
+
+  assert.equal(first.damage, 59);
+  assert.equal(second.damage, 44);
+});
+
+test('Lina passive marks the target and boosts later hits', () => {
+  const state = createInitialState();
+  state.fighters[3].unlocked = true;
+  let session = createBattleSession(state, 'lina', 'ukraine').session;
+
+  const first = applyHeroAttack(session);
+  const second = applyHeroAttack(first.session);
+
+  assert.equal(first.damage, 32);
+  assert.equal(first.session.enemy.marked, true);
+  assert.equal(second.damage, 37);
+});
+
+test('Danylo passive boosts attacks against low HP enemies', () => {
+  const state = createInitialState();
+  state.fighters[4].unlocked = true;
+  let session = createBattleSession(state, 'danylo', 'ukraine').session;
+  session = {
+    ...session,
+    enemy: { ...session.enemy, currentHp: 20 },
+  };
+
+  const result = applyHeroAttack(session);
+
+  assert.equal(result.damage, 55);
+});
+
+test('armored enemy reduces only the first incoming hero hit', () => {
+  const state = createInitialState();
+  state.countries[0].currentLevel = 4;
+  let session = createBattleSession(state, 'artem', 'ukraine').session;
+
+  const first = applyHeroAttack(session);
+  const second = applyHeroAttack(first.session);
+
+  assert.equal(first.damage, 22);
+  assert.equal(second.damage, 34);
+});
+
+test('next battle damage buff is consumed only after a successful session is created', () => {
+  const state = createInitialState();
+  state.nextBattleBuff = { type: 'damage', percent: 10 };
+
+  const invalid = createBattleSession(state, 'sofia', 'ukraine');
+  assert.equal(invalid.created, false);
+  assert.deepEqual(state.nextBattleBuff, { type: 'damage', percent: 10 });
+
+  const valid = createBattleSession(state, 'artem', 'ukraine');
+
+  assert.equal(valid.session.hero.damage, 37);
+  assert.equal(state.nextBattleBuff, null);
+});
+
+test('next battle hp buff is consumed when a session is created', () => {
+  const state = createInitialState();
+  state.nextBattleBuff = { type: 'hp', percent: 10 };
+
+  const valid = createBattleSession(state, 'artem', 'ukraine');
+
+  assert.equal(valid.session.hero.maxHp, 149);
+  assert.equal(valid.session.hero.currentHp, 149);
+  assert.equal(state.nextBattleBuff, null);
+});
