@@ -94,16 +94,16 @@ function normalizeRewardOption(option) {
   if (!allowedIds.has(option.id)) return null;
   return {
     id: option.id,
-    label: String(option.label || ''),
-    description: String(option.description || ''),
+    label: String(option.label ?? ''),
+    description: String(option.description ?? ''),
   };
 }
 
 function normalizePendingRewardChoice(value, countries) {
   if (!value || typeof value !== 'object') return null;
   if (!countries.some((country) => country.id === value.countryId)) return null;
-  const completedLevel = clampInteger(value.completedLevel, 1, LEVELS_PER_COUNTRY, null);
-  if (completedLevel === null) return null;
+  const { completedLevel } = value;
+  if (!Number.isInteger(completedLevel) || completedLevel < 1 || completedLevel > LEVELS_PER_COUNTRY) return null;
   const options = Array.isArray(value.options)
     ? value.options.map(normalizeRewardOption).filter(Boolean)
     : [];

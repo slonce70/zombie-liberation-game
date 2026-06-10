@@ -128,3 +128,42 @@ test('valid tactical save fields are preserved', () => {
   assert.equal(loaded.upgradeDiscountPercent, 25);
   assert.deepEqual(loaded.nextBattleBuff, { type: 'damage', percent: 10 });
 });
+
+test('pending reward choice rejects out-of-range completed levels', () => {
+  const storage = createMemoryStorage();
+  const state = createInitialState();
+  state.pendingRewardChoice = {
+    countryId: 'ukraine',
+    completedLevel: 999,
+    options: [
+      { id: 'bonus_coins', label: 'Більше монет', description: '+35 монет' },
+      { id: 'upgrade_discount', label: 'Знижка прокачки', description: 'Наступна прокачка дешевша' },
+    ],
+  };
+
+  saveGame(storage, state);
+  const loaded = loadGame(storage);
+
+  assert.equal(loaded.pendingRewardChoice, null);
+});
+
+test('reward option normalization preserves present falsey text values', () => {
+  const storage = createMemoryStorage();
+  const state = createInitialState();
+  state.pendingRewardChoice = {
+    countryId: 'ukraine',
+    completedLevel: 3,
+    options: [
+      { id: 'bonus_coins', label: 0, description: false },
+      { id: 'upgrade_discount', label: false, description: 0 },
+    ],
+  };
+
+  saveGame(storage, state);
+  const loaded = loadGame(storage);
+
+  assert.deepEqual(loaded.pendingRewardChoice.options, [
+    { id: 'bonus_coins', label: '0', description: 'false' },
+    { id: 'upgrade_discount', label: 'false', description: '0' },
+  ]);
+});
