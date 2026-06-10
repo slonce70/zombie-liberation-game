@@ -52,3 +52,79 @@ test('resetGame removes saved progress and returns initial state', () => {
   assert.equal(storage.getItem(SAVE_KEY), null);
   assert.equal(reset.coins, 0);
 });
+
+test('new tactical fields default on a fresh game', () => {
+  const storage = createMemoryStorage();
+
+  const loaded = loadGame(storage);
+
+  assert.equal(loaded.pendingRewardChoice, null);
+  assert.equal(loaded.upgradeDiscountPercent, 0);
+  assert.equal(loaded.nextBattleBuff, null);
+});
+
+test('old saves without tactical fields hydrate with backward-compatible defaults', () => {
+  const storage = createMemoryStorage();
+  const state = createInitialState();
+  delete state.pendingRewardChoice;
+  delete state.upgradeDiscountPercent;
+  delete state.nextBattleBuff;
+  storage.setItem(SAVE_KEY, JSON.stringify({
+    version: SAVE_VERSION,
+    savedAt: '2026-06-10T00:00:00.000Z',
+    state,
+  }));
+
+  const loaded = loadGame(storage);
+
+  assert.equal(loaded.pendingRewardChoice, null);
+  assert.equal(loaded.upgradeDiscountPercent, 0);
+  assert.equal(loaded.nextBattleBuff, null);
+  assert.equal(loaded.selectedCountryId, 'ukraine');
+  assert.equal(loaded.selectedFighterId, 'artem');
+});
+
+test('invalid tactical save fields are clamped or ignored', () => {
+  const storage = createMemoryStorage();
+  const state = createInitialState();
+  state.pendingRewardChoice = {
+    countryId: 'missing-country',
+    completedLevel: 999,
+    options: [{ id: 'bad-option', label: '<script>', description: 'bad' }],
+  };
+  state.upgradeDiscountPercent = 999;
+  state.nextBattleBuff = { type: 'speed', percent: 500 };
+  storage.setItem(SAVE_KEY, JSON.stringify({
+    version: SAVE_VERSION,
+    savedAt: '2026-06-10T00:00:00.000Z',
+    state,
+  }));
+
+  const loaded = loadGame(storage);
+
+  assert.equal(loaded.pendingRewardChoice, null);
+  assert.equal(loaded.upgradeDiscountPercent, 0);
+  assert.equal(loaded.nextBattleBuff, null);
+});
+
+test('valid tactical save fields are preserved', () => {
+  const storage = createMemoryStorage();
+  const state = createInitialState();
+  state.pendingRewardChoice = {
+    countryId: 'ukraine',
+    completedLevel: 3,
+    options: [
+      { id: 'bonus_coins', label: 'Більше монет', description: '+35 монет' },
+      { id: 'upgrade_discount', label: 'Знижка прокачки', description: 'Наступна прокачка дешевша' },
+    ],
+  };
+  state.upgradeDiscountPercent = 25;
+  state.nextBattleBuff = { type: 'damage', percent: 10 };
+
+  saveGame(storage, state);
+  const loaded = loadGame(storage);
+
+  assert.deepEqual(loaded.pendingRewardChoice, state.pendingRewardChoice);
+  assert.equal(loaded.upgradeDiscountPercent, 25);
+  assert.deepEqual(loaded.nextBattleBuff, { type: 'damage', percent: 10 });
+});

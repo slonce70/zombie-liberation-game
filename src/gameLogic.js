@@ -13,6 +13,9 @@ export function createInitialState() {
   return {
     coins: 0,
     pityTokens: 0,
+    pendingRewardChoice: null,
+    upgradeDiscountPercent: 0,
+    nextBattleBuff: null,
     selectedCountryId: countryData[0].id,
     selectedFighterId: fighterData[0].id,
     bossDefeated: false,

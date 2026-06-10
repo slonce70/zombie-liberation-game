@@ -68,6 +68,9 @@ export function hydrateState(rawState) {
     ...initial,
     coins: clampNumber(rawState.coins, 0, Number.MAX_SAFE_INTEGER, initial.coins),
     pityTokens: clampNumber(rawState.pityTokens, 0, Number.MAX_SAFE_INTEGER, initial.pityTokens),
+    pendingRewardChoice: normalizePendingRewardChoice(rawState.pendingRewardChoice, countries),
+    upgradeDiscountPercent: normalizeUpgradeDiscountPercent(rawState.upgradeDiscountPercent),
+    nextBattleBuff: normalizeNextBattleBuff(rawState.nextBattleBuff),
     selectedCountryId,
     selectedFighterId,
     bossDefeated: rawState.bossDefeated === true,
@@ -83,6 +86,43 @@ function clampInteger(value, min, max, fallback) {
 
 function clampNumber(value, min, max, fallback) {
   return Number.isFinite(value) ? Math.min(max, Math.max(min, value)) : fallback;
+}
+
+function normalizeRewardOption(option) {
+  if (!option || typeof option !== 'object') return null;
+  const allowedIds = new Set(['bonus_coins', 'upgrade_discount', 'pity_token', 'next_damage', 'next_hp']);
+  if (!allowedIds.has(option.id)) return null;
+  return {
+    id: option.id,
+    label: String(option.label || ''),
+    description: String(option.description || ''),
+  };
+}
+
+function normalizePendingRewardChoice(value, countries) {
+  if (!value || typeof value !== 'object') return null;
+  if (!countries.some((country) => country.id === value.countryId)) return null;
+  const completedLevel = clampInteger(value.completedLevel, 1, LEVELS_PER_COUNTRY, null);
+  if (completedLevel === null) return null;
+  const options = Array.isArray(value.options)
+    ? value.options.map(normalizeRewardOption).filter(Boolean)
+    : [];
+  if (options.length !== 2) return null;
+  return {
+    countryId: value.countryId,
+    completedLevel,
+    options,
+  };
+}
+
+function normalizeUpgradeDiscountPercent(value) {
+  return value === 25 ? 25 : 0;
+}
+
+function normalizeNextBattleBuff(value) {
+  if (!value || typeof value !== 'object') return null;
+  if ((value.type !== 'damage' && value.type !== 'hp') || value.percent !== 10) return null;
+  return { type: value.type, percent: 10 };
 }
 
 export function saveGame(storage, state) {
