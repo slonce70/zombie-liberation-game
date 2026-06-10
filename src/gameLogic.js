@@ -256,7 +256,9 @@ export function completeLevel(state, countryId, random = Math.random) {
     }
   }
 
-  const rewardChoice = createRewardChoice(state, country.id, completedLevel);
+  const rewardChoice = state.pendingRewardChoice
+    ? { created: false, reason: 'reward_already_pending' }
+    : createRewardChoice(state, country.id, completedLevel);
 
   if (completedLevel >= LEVELS_PER_COUNTRY) {
     country.currentLevel = LEVELS_PER_COUNTRY;

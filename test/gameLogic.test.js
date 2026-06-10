@@ -137,6 +137,23 @@ test('pity token reward never opens a fighter directly', () => {
   assert.equal(state.fighters.filter((fighter) => fighter.unlocked).length, 1);
 });
 
+test('complete level preserves an existing pending reward choice', () => {
+  const state = createInitialState();
+  const country = state.countries.find((item) => item.id === 'ukraine');
+  country.currentLevel = 3;
+
+  const firstResult = completeLevel(state, 'ukraine');
+  const firstRewardChoice = state.pendingRewardChoice;
+  country.currentLevel = 7;
+
+  const secondResult = completeLevel(state, 'ukraine');
+
+  assert.equal(firstResult.rewardChoice.completedLevel, 3);
+  assert.strictEqual(state.pendingRewardChoice, firstRewardChoice);
+  assert.equal(state.pendingRewardChoice.completedLevel, 3);
+  assert.equal(secondResult.rewardChoice, null);
+});
+
 test('mega box unlocks a locked fighter when roll is inside 56 percent chance', () => {
   const state = createInitialState();
   const result = openMegaBox(state, () => 0.55);
