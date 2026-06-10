@@ -1,6 +1,8 @@
 import {
   boss,
   countries as countryData,
+  enemyArchetypes,
+  fighterPassives,
   fighters as fighterData,
   LEVELS_PER_COUNTRY,
   MAX_FIGHTER_LEVEL,
@@ -51,12 +53,41 @@ export function getBattleStats(fighter) {
   };
 }
 
+function scaleStat(value, multiplier, rounding = Math.round) {
+  return Math.max(1, rounding(value * multiplier));
+}
+
+function scaleDamage(value, multiplier) {
+  const rounding = multiplier >= 1 ? Math.ceil : Math.floor;
+  return scaleStat(value, multiplier, rounding);
+}
+
+export function getEnemyArchetype(level) {
+  if (level % 5 === 0) return enemyArchetypes.captain;
+  if (level % 4 === 2) return enemyArchetypes.fast;
+  if (level % 4 === 3) return enemyArchetypes.tank;
+  if (level % 4 === 0) return enemyArchetypes.armored;
+  return enemyArchetypes.normal;
+}
+
+export function getFighterPassive(fighterId) {
+  return fighterPassives[fighterId] || null;
+}
+
 export function getEnemyForLevel(level) {
+  const archetype = getEnemyArchetype(level);
+  const baseHp = 72 + (level - 1) * 14;
+  const baseDamage = 10 + Math.floor(level * 1.8);
+  const isCountryFinal = level >= LEVELS_PER_COUNTRY;
   return {
-    name: level >= LEVELS_PER_COUNTRY ? 'Капітан веселих зомбі' : `Зомбі рівня ${level}`,
-    hp: 72 + (level - 1) * 14,
-    damage: 10 + Math.floor(level * 1.8),
-    emoji: level >= LEVELS_PER_COUNTRY ? '🧟‍♀️' : '🧟',
+    name: isCountryFinal ? 'Капітан веселих зомбі' : `${archetype.name} рівня ${level}`,
+    hp: scaleStat(baseHp, archetype.hpMultiplier),
+    damage: scaleDamage(baseDamage, archetype.damageMultiplier),
+    emoji: isCountryFinal ? '🧟‍♀️' : '🧟',
+    archetypeId: archetype.id,
+    archetypeName: archetype.name,
+    traitText: archetype.traitText,
+    firstHitDamageMultiplier: archetype.firstHitDamageMultiplier || 1,
   };
 }
 

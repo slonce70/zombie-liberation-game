@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {
   createInitialState,
   getLevelReward,
+  getEnemyForLevel,
   openMegaBox,
   upgradeFighter,
   completeLevel,
@@ -14,10 +15,58 @@ import {
   applyEnemyCounterAttack,
   getBattleOutcome,
   resolveBattleVictory,
+  getEnemyArchetype,
+  getFighterPassive,
 } from '../src/gameLogic.js';
 
 test('level 1 victory rewards exactly 50 coins', () => {
   assert.equal(getLevelReward(1), 50);
+});
+
+test('enemy archetypes are deterministic for country levels', () => {
+  assert.equal(getEnemyArchetype(1).id, 'normal');
+  assert.equal(getEnemyArchetype(2).id, 'fast');
+  assert.equal(getEnemyArchetype(3).id, 'tank');
+  assert.equal(getEnemyArchetype(4).id, 'armored');
+  assert.equal(getEnemyArchetype(5).id, 'captain');
+  assert.equal(getEnemyArchetype(10).id, 'captain');
+});
+
+test('captain archetype has priority over modulo archetypes', () => {
+  assert.equal(getEnemyArchetype(20).id, 'captain');
+});
+
+test('getEnemyForLevel includes tactical archetype metadata and adjusted stats', () => {
+  const levelOne = getEnemyForLevel(1);
+  const fast = getEnemyForLevel(2);
+  const tank = getEnemyForLevel(3);
+  const armored = getEnemyForLevel(4);
+  const captain = getEnemyForLevel(5);
+
+  assert.equal(levelOne.archetypeId, 'normal');
+  assert.equal(levelOne.hp, 72);
+  assert.equal(levelOne.damage, 11);
+  assert.equal(fast.archetypeId, 'fast');
+  assert.equal(fast.hp, 69);
+  assert.equal(fast.damage, 17);
+  assert.equal(tank.archetypeId, 'tank');
+  assert.equal(tank.hp, 135);
+  assert.equal(tank.damage, 13);
+  assert.equal(armored.archetypeId, 'armored');
+  assert.equal(armored.hp, 125);
+  assert.equal(armored.firstHitDamageMultiplier, 0.65);
+  assert.equal(captain.archetypeId, 'captain');
+  assert.equal(captain.hp, 186);
+  assert.equal(captain.damage, 22);
+});
+
+test('fighter passives are available by fighter id', () => {
+  assert.deepEqual(getFighterPassive('artem'), {
+    id: 'spark_tempo',
+    name: 'Іскровий темп',
+    description: 'Кожен 3-й удар сильніший.',
+  });
+  assert.equal(getFighterPassive('missing'), null);
 });
 
 test('mega box unlocks a locked fighter when roll is inside 56 percent chance', () => {

@@ -69,6 +69,73 @@ export const fighters = [
   },
 ];
 
+export const fighterPassives = {
+  artem: {
+    id: 'spark_tempo',
+    name: 'Іскровий темп',
+    description: 'Кожен 3-й удар сильніший.',
+  },
+  sofia: {
+    id: 'team_shield',
+    name: 'Щит команди',
+    description: 'Перший удар ворога слабший.',
+  },
+  maks: {
+    id: 'rocket_start',
+    name: 'Ракетний старт',
+    description: 'Перший удар сильніший.',
+  },
+  lina: {
+    id: 'weak_spot',
+    name: 'Слабке місце',
+    description: 'Позначає слабке місце ворога.',
+  },
+  danylo: {
+    id: 'finisher',
+    name: 'Фінішер',
+    description: 'Сильніше добиває поранених ворогів.',
+  },
+};
+
+export const enemyArchetypes = {
+  normal: {
+    id: 'normal',
+    name: 'Звичайний зомбі',
+    traitText: 'Без особливих трюків',
+    hpMultiplier: 1,
+    damageMultiplier: 1,
+  },
+  fast: {
+    id: 'fast',
+    name: 'Швидкий зомбі',
+    traitText: 'Менше HP, але сильніший контрудар',
+    hpMultiplier: 0.8,
+    damageMultiplier: 1.25,
+  },
+  tank: {
+    id: 'tank',
+    name: 'Зомбі-Танк',
+    traitText: 'Більше HP, менше урону',
+    hpMultiplier: 1.35,
+    damageMultiplier: 0.9,
+  },
+  armored: {
+    id: 'armored',
+    name: 'Броньований зомбі',
+    traitText: 'Перший удар по ньому слабший',
+    hpMultiplier: 1.1,
+    damageMultiplier: 1,
+    firstHitDamageMultiplier: 0.65,
+  },
+  captain: {
+    id: 'captain',
+    name: 'Капітан веселих зомбі',
+    traitText: 'Мінібос із підсиленим HP та уроном',
+    hpMultiplier: 1.45,
+    damageMultiplier: 1.15,
+  },
+};
+
 export const boss = {
   id: 'bul-bul',
   name: 'Зомбі-Бос Буль-Буль',
