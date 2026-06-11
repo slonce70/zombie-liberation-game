@@ -81,6 +81,17 @@ test('getNextRecommendation mentions next battle buff', () => {
   assert.match(recommendation.message, /10% урон/iu);
 });
 
+test('getNextRecommendation does not suggest unsafe buffed fights', () => {
+  const state = createInitialState();
+  state.countries[0].currentLevel = 25;
+  state.nextBattleBuff = { type: 'damage', percent: 10 };
+
+  const recommendation = getNextRecommendation(state);
+
+  assert.equal(recommendation.kind, 'upgrade');
+  assert.match(recommendation.message, /небезпечно|прокач/iu);
+});
+
 test('getNextRecommendation can suggest a stronger unlocked fighter', () => {
   const state = createInitialState();
   state.fighters[2].unlocked = true;
@@ -90,4 +101,29 @@ test('getNextRecommendation can suggest a stronger unlocked fighter', () => {
   const recommendation = getNextRecommendation(state);
 
   assert.match(recommendation.message, /Макс Ракета/iu);
+});
+
+test('getNextRecommendation does not suggest stronger fighter who still loses', () => {
+  const state = createInitialState();
+  state.fighters[2].unlocked = true;
+  state.selectedFighterId = 'artem';
+  state.countries[0].currentLevel = 25;
+
+  const recommendation = getNextRecommendation(state);
+
+  assert.equal(recommendation.kind, 'upgrade');
+  assert.match(recommendation.message, /прокач/iu);
+});
+
+test('getNextRecommendation does not advertise max-level discount as Infinity', () => {
+  const state = createInitialState();
+  state.upgradeDiscountPercent = 25;
+  state.fighters[0].level = 10;
+  state.fighters[1].unlocked = true;
+
+  const recommendation = getNextRecommendation(state);
+
+  assert.equal(recommendation.kind, 'upgrade');
+  assert.doesNotMatch(recommendation.message, /Infinity/iu);
+  assert.match(recommendation.message, /Софія Щит/iu);
 });

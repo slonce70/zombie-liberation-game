@@ -39,8 +39,18 @@ export function getCountryProgress(country) {
   return { completed, total: LEVELS_PER_COUNTRY, percent, nextRewardLabel };
 }
 
-function forecastTurns(fighter, enemy) {
-  const stats = getBattleStats(fighter);
+function applyBattleBuff(stats, buff) {
+  if (buff?.type === 'damage') {
+    return { ...stats, damage: Math.round(stats.damage * (1 + buff.percent / 100)) };
+  }
+  if (buff?.type === 'hp') {
+    return { ...stats, hp: Math.round(stats.hp * (1 + buff.percent / 100)) };
+  }
+  return stats;
+}
+
+function forecastTurns(fighter, enemy, buff = null) {
+  const stats = applyBattleBuff(getBattleStats(fighter), buff);
   return {
     stats,
     heroTurns: Math.ceil(enemy.hp / stats.damage),
@@ -48,16 +58,33 @@ function forecastTurns(fighter, enemy) {
   };
 }
 
-function bestUnlockedFighter(state, enemy) {
+function bestUnlockedFighter(state, enemy, buff = null) {
   return state.fighters
     .filter((fighter) => fighter.unlocked)
-    .map((fighter) => ({ fighter, forecast: forecastTurns(fighter, enemy) }))
+    .map((fighter) => ({ fighter, forecast: forecastTurns(fighter, enemy, buff) }))
     .sort((left, right) => {
       const leftSurplus = left.forecast.enemyTurns - left.forecast.heroTurns;
       const rightSurplus = right.forecast.enemyTurns - right.forecast.heroTurns;
       if (rightSurplus !== leftSurplus) return rightSurplus - leftSurplus;
       return right.forecast.stats.damage - left.forecast.stats.damage;
     })[0] || null;
+}
+
+function discountUpgradeTarget(state, selectedFighter) {
+  const candidates = state.fighters
+    .filter((fighter) => fighter.unlocked)
+    .map((fighter) => ({
+      fighter,
+      cost: getEffectiveUpgradeCost(state, fighter.level),
+      selected: fighter.id === selectedFighter.id,
+    }))
+    .filter((candidate) => Number.isFinite(candidate.cost))
+    .sort((left, right) => {
+      if (left.selected !== right.selected) return left.selected ? -1 : 1;
+      return left.cost - right.cost;
+    });
+
+  return candidates[0] || null;
 }
 
 export function getNextRecommendation(state) {
@@ -74,34 +101,38 @@ export function getNextRecommendation(state) {
     || state.fighters.find((item) => item.unlocked)
     || state.fighters[0];
   const enemy = getEnemyForLevel(country.currentLevel);
-  const current = forecastTurns(fighter, enemy);
-  const best = bestUnlockedFighter(state, enemy);
+  const current = forecastTurns(fighter, enemy, state.nextBattleBuff);
+  const best = bestUnlockedFighter(state, enemy, state.nextBattleBuff);
 
   if (state.upgradeDiscountPercent === 25) {
-    const cost = getEffectiveUpgradeCost(state, fighter.level);
-    return { kind: 'upgrade', message: `Є знижка 25%: ${fighter.name} можна прокачати за ${cost} монет.` };
-  }
-
-  if (state.nextBattleBuff?.type === 'damage') {
-    return { kind: 'fight', message: 'Наступний бій має +10% урону — гарний момент атакувати.' };
-  }
-  if (state.nextBattleBuff?.type === 'hp') {
-    return { kind: 'fight', message: 'Наступний бій має +10% HP — можна безпечніше ризикнути.' };
+    const target = discountUpgradeTarget(state, fighter);
+    if (target) {
+      return { kind: 'upgrade', message: `Є знижка 25%: ${target.fighter.name} можна прокачати за ${target.cost} монет.` };
+    }
   }
 
   if (best && best.fighter.id !== fighter.id) {
     const bestSurplus = best.forecast.enemyTurns - best.forecast.heroTurns;
     const currentSurplus = current.enemyTurns - current.heroTurns;
-    if (bestSurplus > currentSurplus || (
+    const bestIsViable = best.forecast.heroTurns <= best.forecast.enemyTurns;
+    const bestIsStronger = bestSurplus > currentSurplus || (
       bestSurplus === currentSurplus
       && best.forecast.stats.damage > current.stats.damage
-    )) {
+    );
+    if (bestIsViable && bestIsStronger) {
       return { kind: 'fighter', message: `${best.fighter.name} краще підходить проти ${enemy.archetypeName}.` };
     }
   }
 
   if (current.heroTurns > current.enemyTurns) {
     return { kind: 'upgrade', message: `Небезпечно: потрібна прокачка або сильніший боєць проти ${enemy.archetypeName}.` };
+  }
+
+  if (state.nextBattleBuff?.type === 'damage') {
+    return { kind: 'fight', message: `Наступний бій має +${state.nextBattleBuff.percent}% урону — гарний момент атакувати.` };
+  }
+  if (state.nextBattleBuff?.type === 'hp') {
+    return { kind: 'fight', message: `Наступний бій має +${state.nextBattleBuff.percent}% HP — можна безпечніше ризикнути.` };
   }
 
   if (country.currentLevel < MEGA_BOX_LEVEL) {
