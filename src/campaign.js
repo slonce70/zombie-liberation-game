@@ -1,5 +1,8 @@
 import {
-  getBattleStats,
+  applyEnemyCounterAttack,
+  applyHeroAttack,
+  createBattleSession,
+  getBattleOutcome,
   getEnemyForLevel,
   getEffectiveUpgradeCost,
   isBossUnlocked,
@@ -39,30 +42,48 @@ export function getCountryProgress(country) {
   return { completed, total: LEVELS_PER_COUNTRY, percent, nextRewardLabel };
 }
 
-function applyBattleBuff(stats, buff) {
-  if (buff?.type === 'damage') {
-    return { ...stats, damage: Math.round(stats.damage * (1 + buff.percent / 100)) };
-  }
-  if (buff?.type === 'hp') {
-    return { ...stats, hp: Math.round(stats.hp * (1 + buff.percent / 100)) };
-  }
-  return stats;
+const MAX_FORECAST_STEPS = 80;
+
+function cloneCampaignState(state) {
+  return JSON.parse(JSON.stringify(state));
 }
 
-function forecastTurns(fighter, enemy, buff = null) {
-  const stats = applyBattleBuff(getBattleStats(fighter), buff);
+function forecastBattle(state, fighter, country) {
+  const forecastState = cloneCampaignState(state);
+  const battle = createBattleSession(forecastState, fighter.id, country.id);
+  if (!battle.created) {
+    return {
+      victory: false,
+      heroTurns: Infinity,
+      enemyTurns: 0,
+      stats: { hp: 0, damage: 0 },
+    };
+  }
+
+  let session = battle.session;
+  for (let step = 0; step < MAX_FORECAST_STEPS && getBattleOutcome(session) === 'ongoing'; step += 1) {
+    session = applyHeroAttack(session).session;
+    if (getBattleOutcome(session) !== 'ongoing') break;
+    session = applyEnemyCounterAttack(session).session;
+  }
+
   return {
-    stats,
-    heroTurns: Math.ceil(enemy.hp / stats.damage),
-    enemyTurns: Math.ceil(stats.hp / enemy.damage),
+    victory: getBattleOutcome(session) === 'victory',
+    heroTurns: session.heroAttackCount,
+    enemyTurns: session.enemyCounterCount,
+    stats: {
+      hp: session.hero.maxHp,
+      damage: session.hero.damage,
+    },
   };
 }
 
-function bestUnlockedFighter(state, enemy, buff = null) {
+function bestUnlockedFighter(state, country) {
   return state.fighters
     .filter((fighter) => fighter.unlocked)
-    .map((fighter) => ({ fighter, forecast: forecastTurns(fighter, enemy, buff) }))
+    .map((fighter) => ({ fighter, forecast: forecastBattle(state, fighter, country) }))
     .sort((left, right) => {
+      if (left.forecast.victory !== right.forecast.victory) return left.forecast.victory ? -1 : 1;
       const leftSurplus = left.forecast.enemyTurns - left.forecast.heroTurns;
       const rightSurplus = right.forecast.enemyTurns - right.forecast.heroTurns;
       if (rightSurplus !== leftSurplus) return rightSurplus - leftSurplus;
@@ -101,8 +122,8 @@ export function getNextRecommendation(state) {
     || state.fighters.find((item) => item.unlocked)
     || state.fighters[0];
   const enemy = getEnemyForLevel(country.currentLevel);
-  const current = forecastTurns(fighter, enemy, state.nextBattleBuff);
-  const best = bestUnlockedFighter(state, enemy, state.nextBattleBuff);
+  const current = forecastBattle(state, fighter, country);
+  const best = bestUnlockedFighter(state, country);
 
   if (state.upgradeDiscountPercent === 25) {
     const target = discountUpgradeTarget(state, fighter);
@@ -114,7 +135,7 @@ export function getNextRecommendation(state) {
   if (best && best.fighter.id !== fighter.id) {
     const bestSurplus = best.forecast.enemyTurns - best.forecast.heroTurns;
     const currentSurplus = current.enemyTurns - current.heroTurns;
-    const bestIsViable = best.forecast.heroTurns <= best.forecast.enemyTurns;
+    const bestIsViable = best.forecast.victory;
     const bestIsStronger = bestSurplus > currentSurplus || (
       bestSurplus === currentSurplus
       && best.forecast.stats.damage > current.stats.damage
@@ -124,7 +145,7 @@ export function getNextRecommendation(state) {
     }
   }
 
-  if (current.heroTurns > current.enemyTurns) {
+  if (!current.victory) {
     return { kind: 'upgrade', message: `Небезпечно: потрібна прокачка або сильніший боєць проти ${enemy.archetypeName}.` };
   }
 
