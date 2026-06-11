@@ -75,10 +75,18 @@ assert.match(css, /\.hp-meter/);
 assert.match(css, /\.hp-fill/);
 assert.match(css, /\.damage-popup/);
 assert.match(css, /\.action-notice/);
+assert.match(css, /\.passive-hint/);
+assert.match(css, /\.enemy-trait/);
+assert.match(css, /\.passive-events/);
+assert.match(css, /\.reward-choice/);
+assert.match(css, /\.reward-options/);
+assert.match(css, /\.reward-options button/);
 assert.match(css, /@keyframes damageFloat/);
 assert.match(css, /\.battle-stage\.phase-hero-attack/);
 assert.match(css, /\.battle-stage\.phase-enemy-attack/);
 assert.match(css, /\.mobile-quick-actions/);
 assert.match(css, /100dvh/);
+assert.match(css, /@media \(max-width: 700px\)[\s\S]*?\.reward-options \{[\s\S]*?grid-template-columns: 1fr;/, 'reward options should collapse to one column on mobile');
+assert.match(css, /@media \(max-width: 700px\)[\s\S]*?\.reward-choice \{[\s\S]*?margin-bottom: 76px;/, 'reward choice should leave room for sticky mobile actions');
 
 console.log('Smoke check passed: app shell, map, QA hooks, and generated atlas sprite animation are present.');
