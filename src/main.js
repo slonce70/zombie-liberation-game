@@ -6,12 +6,14 @@ import {
   addLog,
   getBattleStats,
   getEnemyForLevel,
-  getUpgradeCost,
   createBattleSession,
   applyHeroAttack,
   applyEnemyCounterAttack,
   getBattleOutcome,
   resolveBattleVictory,
+  applyRewardChoice,
+  getFighterPassive,
+  getEffectiveUpgradeCost,
   isBossUnlocked,
   LEVELS_PER_COUNTRY,
   MEGA_BOX_LEVEL,
@@ -148,6 +150,55 @@ function renderActionNotice() {
   `;
 }
 
+function renderPassiveHint(fighter) {
+  const passive = getFighterPassive(fighter.id);
+  if (!passive) return '';
+  return `
+    <span class="passive-hint" title="${escapeHtml(passive.name)}">
+      <strong>${escapeHtml(passive.name)}</strong>
+      <small>${escapeHtml(passive.description)}</small>
+    </span>
+  `;
+}
+
+function renderEnemyTrait(enemy) {
+  if (!enemy?.archetypeName) return '';
+  return `
+    <span class="enemy-trait">
+      <strong>${escapeHtml(enemy.archetypeName)}</strong>
+      <small>${escapeHtml(enemy.traitText)}</small>
+    </span>
+  `;
+}
+
+function renderPassiveEvents() {
+  const events = activeBattle?.lastPassiveEvents || [];
+  if (events.length === 0) return '';
+  return `
+    <span class="passive-events" aria-live="polite">
+      ${events.map((event) => escapeHtml(event.label)).join(' + ')}
+    </span>
+  `;
+}
+
+function renderRewardChoice() {
+  const pending = state.pendingRewardChoice;
+  if (!pending) return '';
+  return `
+    <section class="reward-choice" role="status" aria-live="polite">
+      <strong>Обери тактичну нагороду</strong>
+      <div class="reward-options">
+        ${pending.options.map((option) => `
+          <button data-reward="${escapeHtml(option.id)}" aria-label="${escapeHtml(option.label)}">
+            <span>${escapeHtml(option.label)}</span>
+            <small>${escapeHtml(option.description)}</small>
+          </button>
+        `).join('')}
+      </div>
+    </section>
+  `;
+}
+
 function spriteRowIndex(stateName) {
   return Math.max(0, spriteStates.indexOf(stateName));
 }
@@ -253,7 +304,7 @@ function render() {
       ? activeBattle.enemy
       : { currentHp: enemy.hp, maxHp: enemy.hp, damage: enemy.damage }
     : null;
-  const fightDisabled = country.freed || isBattleAnimating;
+  const fightDisabled = country.freed || isBattleAnimating || Boolean(state.pendingRewardChoice);
   const bossDisabled = isBattleAnimating || !(summary.bossUnlocked && !state.bossDefeated);
   const fightLabel = activeBattle ? '⚔️ Удар' : '⚔️ Битися з зомбі';
   const quickFightLabel = activeBattle ? '⚔️ Удар' : '⚔️ Бій';
@@ -306,6 +357,7 @@ function render() {
     </section>
 
     ${renderActionNotice()}
+    ${renderRewardChoice()}
 
     <section class="game-grid">
       <article class="arena panel">
@@ -324,6 +376,8 @@ function render() {
             ${animatedSpriteMarkup(fighterSprite, fighterState, fighterSprite.fallbackEmoji, 'battle-sprite')}
             <span class="sprite-name">${escapeHtml(fighter.name)}</span>
             ${renderHpPanel(fighter.name, heroCombatant)}
+            ${renderPassiveHint(fighter)}
+            ${renderPassiveEvents()}
           </div>
           <div class="versus">VS</div>
           <div class="sprite zombie-sprite ${battlePhase === 'enemy-attack' ? 'attacking' : ''} ${battlePhase === 'hero-attack' ? 'hurt' : ''}">
@@ -331,6 +385,7 @@ function render() {
             ${enemy ? animatedSpriteMarkup(enemySprite, enemyState, enemySprite.fallbackEmoji, 'battle-sprite') : '<span class="saved-mark" aria-hidden="true">✅</span>'}
             <span class="sprite-name">${enemy ? escapeHtml(enemy.name) : 'Врятовано!'}</span>
             ${enemy ? renderHpPanel(enemy.name, enemyCombatant) : '<span class="sprite-stats">Обери іншу країну</span>'}
+            ${enemy ? renderEnemyTrait(enemy) : ''}
           </div>
         </div>
 
@@ -391,7 +446,7 @@ function renderMapNode(country) {
 function renderFighterCard(fighter) {
   const selected = fighter.id === state.selectedFighterId ? 'selected' : '';
   const stats = getBattleStats(fighter);
-  const cost = getUpgradeCost(fighter.level);
+  const cost = getEffectiveUpgradeCost(state, fighter.level);
   const sprite = getSpriteForEntity(fighter.id);
   const upgradeBlockedByBattle = Boolean(activeBattle) || isBattleAnimating;
   const upgradeDisabled = !fighter.unlocked || fighter.level >= MAX_FIGHTER_LEVEL || upgradeBlockedByBattle;
@@ -410,7 +465,7 @@ function renderFighterCard(fighter) {
       </button>
       <p>Рівень ${fighter.level}/${MAX_FIGHTER_LEVEL} · HP ${stats.hp} · Урон ${stats.damage}</p>
       <button class="upgrade" data-upgrade="${fighter.id}" title="${escapeHtml(upgradeTitle)}" ${upgradeDisabled ? 'disabled' : ''}>
-        ⬆️ Прокачати ${fighter.level < MAX_FIGHTER_LEVEL ? `за ${cost} монет` : 'MAX'}
+        ⬆️ Прокачати ${fighter.level < MAX_FIGHTER_LEVEL ? `за ${cost} монет${state.upgradeDiscountPercent === 25 ? ' зі знижкою' : ''}` : 'MAX'}
       </button>
     </div>
   `;
@@ -419,6 +474,12 @@ function renderFighterCard(fighter) {
 async function handleFight() {
   if (isBattleAnimating) return;
   clearActionNotice();
+
+  if (state.pendingRewardChoice) {
+    setActionNotice('warning', 'Спочатку обери тактичну нагороду.');
+    render();
+    return;
+  }
 
   const country = currentCountry();
   if (country.freed) return;
@@ -463,6 +524,7 @@ async function handleFight() {
       const { completedLevel, boxResult, country: completedCountry } = result.progress;
       addLog(state, `${result.fighterName} переміг ${result.enemy.name}: +${result.reward} монет!`);
       if (boxResult) addLog(state, `🎁 ${boxResult.message}`);
+      if (result.progress.rewardChoice) addLog(state, '🎯 Доступна тактична нагорода — обери один варіант.');
       if (completedCountry.freed) addLog(state, `✅ ${completedCountry.name} звільнено від зомбі!`);
       if (isBossUnlocked(state)) addLog(state, '👑 Усі 5 країн врятовано — фінальний бос відкритий!');
       if (completedLevel === 1) addLog(state, 'Перший рівень дав рівно 50 монет.');
@@ -553,6 +615,20 @@ function handleUpgrade(fighterId) {
   addLog(state, message);
 }
 
+function handleRewardChoice(rewardId) {
+  const result = applyRewardChoice(state, rewardId);
+  if (!result.applied) {
+    const message = 'Цю нагороду вже не можна забрати.';
+    setActionNotice('warning', message);
+    addLog(state, message);
+    return;
+  }
+
+  clearActiveBattle();
+  setActionNotice('success', result.message);
+  addLog(state, result.message);
+}
+
 function devLevel10() {
   clearActiveBattle();
   const country = currentCountry();
@@ -617,6 +693,7 @@ app.addEventListener('click', (event) => {
     selectFighter(state, target.dataset.fighter);
   }
   if (target.dataset.upgrade) handleUpgrade(target.dataset.upgrade);
+  if (target.dataset.reward) handleRewardChoice(target.dataset.reward);
   if (target.dataset.action === 'boss') {
     void handleBoss();
     return;
