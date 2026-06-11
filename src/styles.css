@@ -296,6 +296,37 @@ h1 span { color: #79f09c; display: block; margin-top: .04em; }
   animation: damageFloat 760ms ease-out 1;
   pointer-events: none;
 }
+.passive-hint,
+.enemy-trait,
+.passive-events {
+  position: relative;
+  z-index: 1;
+  width: min(240px, 96%);
+  display: grid;
+  gap: 3px;
+  padding: 8px 10px;
+  border: 2px solid rgba(18, 28, 54, 0.12);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.82);
+  color: #1d2742;
+  font-size: 0.78rem;
+  line-height: 1.15;
+}
+.passive-hint strong,
+.enemy-trait strong,
+.passive-events {
+  font-weight: 900;
+}
+.passive-hint small,
+.enemy-trait small {
+  color: #536079;
+  font-size: 0.72rem;
+}
+.passive-events {
+  border-color: rgba(255, 184, 75, 0.45);
+  background: #fff3c7;
+  color: #7a4a00;
+}
 .battle-stage.phase-hero-attack,
 .battle-stage.phase-enemy-attack {
   outline: 4px solid rgba(255,255,255,.72);
@@ -310,6 +341,40 @@ h1 span { color: #79f09c; display: block; margin-top: .04em; }
 .actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 12px; }
 .primary { color: white; background: linear-gradient(135deg, #ff7a3c, #ff3f76); }
 .mobile-quick-actions { display: none; }
+.reward-choice {
+  display: grid;
+  gap: 12px;
+  margin: 0 0 18px;
+  padding: 16px;
+  border: 2px solid rgba(255, 184, 75, 0.48);
+  border-radius: 8px;
+  background: #fff7d8;
+  box-shadow: 0 10px 24px rgba(31, 44, 80, 0.12);
+}
+.reward-choice > strong {
+  color: #2f3148;
+  font-size: 1rem;
+  font-weight: 950;
+}
+.reward-options {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+.reward-options button {
+  min-height: 72px;
+  display: grid;
+  gap: 4px;
+  align-content: center;
+  text-align: left;
+}
+.reward-options button span {
+  font-weight: 900;
+}
+.reward-options button small {
+  color: #536079;
+  font-weight: 700;
+}
 
 .fighters { grid-row: span 2; }
 .fighters h2, .story h2 { margin-top: 0; }
@@ -482,6 +547,22 @@ h1 span { color: #79f09c; display: block; margin-top: .04em; }
     width: min(230px, 94%);
     font-size: .76rem;
   }
+  .passive-hint,
+  .enemy-trait,
+  .passive-events {
+    width: min(220px, 92%);
+    font-size: 0.74rem;
+  }
+  .reward-choice {
+    margin-bottom: 76px;
+    padding: 12px;
+  }
+  .reward-options {
+    grid-template-columns: 1fr;
+  }
+  .reward-options button {
+    min-height: 64px;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -495,5 +576,8 @@ h1 span { color: #79f09c; display: block; margin-top: .04em; }
     animation: none !important;
     opacity: 1;
     transform: translateX(-50%);
+  }
+  .passive-events {
+    transition: none;
   }
 }
